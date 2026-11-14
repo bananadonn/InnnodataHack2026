@@ -1,0 +1,10 @@
+.ctf_cache/
+work/
+jobs/
+__pycache__/
+*.pyc
+.DS_Store
+.selfcheck_example/
+.venv/
+.env
+runs/

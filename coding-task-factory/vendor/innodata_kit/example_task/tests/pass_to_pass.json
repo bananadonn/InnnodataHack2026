@@ -1,0 +1,4 @@
+[
+  "tests/test_slugify.py::test_slugify_basic",
+  "tests/test_slugify.py::test_slugify_strips_punctuation"
+]
