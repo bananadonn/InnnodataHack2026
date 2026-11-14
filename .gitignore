@@ -1,0 +1,21 @@
+# secrets
+.env
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# OS junk
+.DS_Store
+
+# local click clone (never commit; the Dockerfile clones it)
+/click/
+
+# raw harbor run dirs (root only, so results/bench/ stays tracked)
+/sc/
+/bench/
+
+# logs: ignored everywhere except under results/
+*.log
+!results/**/*.log

@@ -1,0 +1,30 @@
+# TEMPLATE: replace XXXX-<slug> in name and instance_id (they MUST be equal, and equal the folder name).
+[metadata]
+name = "pallets__click-XXXX-<slug>"
+instance_id = "pallets__click-XXXX-<slug>"
+task = "swe-feature-implementation"
+source_repo = "pallets/click"
+base_commit = "cf19179e8e2fd54c601378cec9e0d21bb12b6fb1"  # click 8.5.1
+license = "BSD-3-Clause"
+language = "en"
+programming_language = "python"
+
+[environment]
+docker_image = ""                           # empty → Harbor builds environment/Dockerfile
+build_timeout_sec = 3600.0
+cpus = 2
+workdir = "/app"
+memory_mb = 4096
+network_mode = "no-network"                 # "no-network" | "allowlist" | "public"  (NOT "none")
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+environment_mode = "shared"
+timeout_sec = 900.0
+
+[rollout_baseline.oracle]
+reward = 1.0                                 # gold (solution/) must score exactly 1.0
+[rollout_baseline.nop]
+reward = 0.0                                 # untouched base must score 0.0

@@ -1,0 +1,2 @@
+TODO: gold patch (unified diff against base_commit). Written by pipeline/generate.py.
+Must touch only source files, never the files tests/test_patch.diff touches.

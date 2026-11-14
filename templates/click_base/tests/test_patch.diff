@@ -1,0 +1,2 @@
+TODO: test patch (unified diff against base_commit). Written by pipeline/generate.py.
+Adds the feature tests. Must touch only test files, never the files solution/patch.diff touches.
