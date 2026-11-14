@@ -1,0 +1,7 @@
+[
+  "tests/test_truncate.py::test_truncate_shorter_than_limit_unchanged",
+  "tests/test_truncate.py::test_truncate_adds_default_ellipsis",
+  "tests/test_truncate.py::test_truncate_custom_suffix",
+  "tests/test_truncate.py::test_truncate_limit_at_or_below_suffix_length",
+  "tests/test_truncate.py::test_truncate_negative_limit_raises"
+]

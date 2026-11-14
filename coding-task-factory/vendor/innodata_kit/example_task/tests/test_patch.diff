@@ -1,0 +1,31 @@
+diff --git a/tests/test_truncate.py b/tests/test_truncate.py
+new file mode 100644
+index 0000000..28810e7
+--- /dev/null
++++ b/tests/test_truncate.py
+@@ -0,0 +1,25 @@
++import pytest
++
++from stringkit import truncate
++
++
++def test_truncate_shorter_than_limit_unchanged():
++    assert truncate("hello", 10) == "hello"
++
++
++def test_truncate_adds_default_ellipsis():
++    # "hello world" is 11 chars; limit 8 -> 7 chars + the 1-char ellipsis.
++    assert truncate("hello world", 8) == "hello w…"
++
++
++def test_truncate_custom_suffix():
++    assert truncate("hello world", 8, suffix="...") == "hello..."
++
++
++def test_truncate_limit_at_or_below_suffix_length():
++    assert truncate("hello", 2, suffix="...") == ".."
++
++
++def test_truncate_negative_limit_raises():
++    with pytest.raises(ValueError):
++        truncate("hello", -1)
