@@ -1,0 +1,87 @@
+{
+  "feature_slug": "completion-postprocess",
+  "files": [
+    {
+      "path": "tests/test_shell_completion_postprocess.py",
+      "content": "import pytest\n\nimport click.shell_completion\nfrom click.core import Argument\nfrom click.core import Command\nfrom click.core import Group\nfrom click.shell_completion import add_completion_class\nfrom click.shell_completion import BashComplete\nfrom click.shell_completion import CompletionItem\nfrom click.shell_completion import FishComplete\nfrom click.shell_completion import get_completion_class\nfrom click.shell_completion import PowerShellComplete\nfrom click.shell_completion import ShellComplete\nfrom click.shell_completion import ZshComplete\n\n\ndef _items_cli(make_items):\n    \"\"\"A command whose only argument completes to exactly the items\n    produced by ``make_items()`` (fresh objects on every call).\"\"\"\n\n    def _complete(ctx, param, incomplete):\n        return make_items()\n\n    return Command(\"cli\", params=[Argument([\"x\"], shell_complete=_complete)])\n\n\ndef _make_cls(**attrs):\n    class _C(ShellComplete):\n        name = \"x\"\n        source_template = \"\"\n\n        def get_completion_args(self):\n            return [], \"\"\n\n        def format_completion(self, item):\n            return f\"{item.type},{item.value}\"\n\n    for key, value in attrs.items():\n        setattr(_C, key, value)\n\n    return _C\n\n\ndef _complete(cls, cli, args=None, incomplete=\"\"):\n    comp = cls(cli, {}, \"cli\", \"_CLI_COMPLETE\")\n    return comp.get_completions([] if args is None else args, incomplete)\n\n\ndef _triples(items):\n    return [(i.value, i.type, i.help) for i in items]\n\n\ndef _mixed_items():\n    return [\n        CompletionItem(\"b\", help=\"hb\"),\n        CompletionItem(\"a\"),\n        CompletionItem(\"b\", help=\"other\"),\n        CompletionItem(\"C\", type=\"file\"),\n        CompletionItem(\"a\", help=\"ha\"),\n        CompletionItem(\"c\"),\n    ]\n\n\ndef _chain_cli():\n    # Completing [\"get\"] yields \"set\" from the \"get\" subgroup and again\n    # \"set\" from the chained parent's siblings.\n    return Group(\n        \"cli\",\n        chain=True,\n        commands=[\n            Command(\"set\"),\n            Command(\"start\"),\n            Group(\"get\", commands=[Command(\"set\")]),\n        ],\n    )\n\n\n@pytest.fixture()\ndef _restore_available_shells():\n    prev = click.shell_completion._available_shells.copy()\n    yield\n    click.shell_completion._available_shells.clear()\n    click.shell_completion._available_shells.update(prev)\n\n\n# 1. defaults unchanged\n\n\ndef test_default_class_attributes():\n    assert ShellComplete.dedupe_completions is False\n    assert ShellComplete.sort_completions is False\n    assert ShellComplete.max_completions is None\n\n\n@pytest.mark.parametrize(\n    \"cls\", [BashComplete, ZshComplete, FishComplete, PowerShellComplete]\n)\ndef test_builtin_shells_defaults_leave_output_unchanged(cls):\n    assert cls.dedupe_completions is False\n    assert cls.sort_completions is False\n    assert cls.max_completions is None\n    cli = _items_cli(_mixed_items)\n    assert _triples(_complete(cls, cli)) == _triples(_mixed_items())\n\n\ndef test_defaults_keep_chain_duplicates():\n    cli = _chain_cli()\n    words = [i.value for i in _complete(ShellComplete, cli, [\"get\"])]\n    assert words == [\"set\", \"set\", \"start\"]\n\n\ndef test_defaults_complete_output_unchanged():\n    cls = _make_cls()\n    cli = _items_cli(_mixed_items)\n    out = cls(cli, {}, \"cli\", \"_CLI_COMPLETE\").complete()\n    assert out == \"plain,b\\nplain,a\\nplain,b\\nfile,C\\nplain,a\\nplain,c\"\n\n\n# 2. dedupe keeps first position and fills missing help\n\n\ndef test_dedupe_keeps_first_position():\n    cls = _make_cls(dedupe_completions=True)\n    cli = _items_cli(\n        lambda: [\n            CompletionItem(\"b\", help=\"hb\"),\n            CompletionItem(\"a\", help=\"ha\"),\n            CompletionItem(\"b\", help=\"other\"),\n            CompletionItem(\"c\"),\n            CompletionItem(\"a\", help=\"x\"),\n        ]\n    )\n    assert _triples(_complete(cls, cli)) == [\n        (\"b\", \"plain\", \"hb\"),\n        (\"a\", \"plain\", \"ha\"),\n        (\"c\", \"plain\", None),\n    ]\n\n\ndef test_dedupe_fills_missing_help_from_later_duplicate():\n    cls = _make_cls(dedupe_completions=True)\n    cli = _items_cli(\n        lambda: [\n            CompletionItem(\"a\"),\n            CompletionItem(\"b\", help=\"\"),\n            CompletionItem(\"z\"),\n            CompletionItem(\"a\", help=\"help a\"),\n            CompletionItem(\"b\", help=\"help b\"),\n        ]\n    )\n    assert _triples(_complete(cls, cli)) == [\n        (\"a\", \"plain\", \"help a\"),\n        (\"b\", \"plain\", \"help b\"),\n        (\"z\", \"plain\", None),\n    ]\n\n\ndef test_dedupe_does_not_overwrite_existing_help():\n    cls = _make_cls(dedupe_completions=True)\n    cli = _items_cli(\n        lambda: [CompletionItem(\"a\", help=\"first\"), CompletionItem(\"a\", help=\"2nd\")]\n    )\n    assert _triples(_complete(cls, cli)) == [(\"a\", \"plain\", \"first\")]\n\n\ndef test_dedupe_exact_case_comparison():\n    cls = _make_cls(dedupe_completions=True)\n    cli = _items_cli(\n        lambda: [CompletionItem(\"a\"), CompletionItem(\"A\"), CompletionItem(\"a\")]\n    )\n    assert [i.value for i in _complete(cls, cli)] == [\"a\", \"A\"]\n\n\ndef test_dedupe_chain_group_sibling_appears_once():\n    cls = _make_cls(dedupe_completions=True)\n    words = [i.value for i in _complete(cls, _chain_cli(), [\"get\"])]\n    assert words == [\"set\", \"start\"]\n    assert len(words) == len(set(words))\n\n\n# 3. sort is casefold stable\n\n\ndef test_sort_casefold():\n    cls = _make_cls(sort_completions=True)\n    cli = _items_cli(\n        lambda: [CompletionItem(\"Delta\"), CompletionItem(\"alpha\"), CompletionItem(\"Charlie\"), CompletionItem(\"bravo\")]\n    )\n    assert [i.value for i in _complete(cls, cli)] == [\n        \"alpha\",\n        \"bravo\",\n        \"Charlie\",\n        \"Delta\",\n    ]\n\n\ndef test_sort_is_stable_for_case_ties():\n    cls = _make_cls(sort_completions=True)\n    cli = _items_cli(\n        lambda: [\n            CompletionItem(\"b\", help=\"1\"),\n            CompletionItem(\"B\", help=\"2\"),\n            CompletionItem(\"A\", help=\"3\"),\n            CompletionItem(\"a\", help=\"4\"),\n        ]\n    )\n    assert _triples(_complete(cls, cli)) == [\n        (\"A\", \"plain\", \"3\"),\n        (\"a\", \"plain\", \"4\"),\n        (\"b\", \"plain\", \"1\"),\n        (\"B\", \"plain\", \"2\"),\n    ]\n\n\ndef test_sort_is_stable_for_equal_values():\n    cls = _make_cls(sort_completions=True)\n    cli = _items_cli(\n        lambda: [\n            CompletionItem(\"z\"),\n            CompletionItem(\"m\", type=\"file\"),\n            CompletionItem(\"m\", type=\"plain\"),\n            CompletionItem(\"m\", type=\"dir\"),\n        ]\n    )\n    assert [(i.value, i.type) for i in _complete(cls, cli)] == [\n        (\"m\", \"file\"),\n        (\"m\", \"plain\"),\n        (\"m\", \"dir\"),\n        (\"z\", \"plain\"),\n    ]\n\n\ndef test_sort_uses_str_of_value():\n    cls = _make_cls(sort_completions=True)\n    cli = _items_cli(\n        lambda: [CompletionItem(9), CompletionItem(10), CompletionItem(2)]\n    )\n    assert [i.value for i in _complete(cls, cli)] == [10, 2, 9]\n\n\ndef test_dedupe_then_sort_case_variants_adjacent():\n    cls = _make_cls(dedupe_completions=True, sort_completions=True)\n    cli = _items_cli(\n        lambda: [\n            CompletionItem(\"b\"),\n            CompletionItem(\"A\"),\n            CompletionItem(\"B\"),\n            CompletionItem(\"a\"),\n            CompletionItem(\"b\"),\n        ]\n    )\n    assert [i.value for i in _complete(cls, cli)] == [\"A\", \"a\", \"b\", \"B\"]\n\n\n# 4. truncate after sort and dedupe\n\n\ndef test_spec_example_sort_and_truncate():\n    cls = _make_cls(sort_completions=True, max_completions=2)\n    cli = Group(\"cli\", commands=[Command(\"b\"), Command(\"a\"), Command(\"c\")])\n    assert [i.value for i in _complete(cls, cli)] == [\"a\", \"b\"]\n\n\ndef test_truncate_without_sort_keeps_first_items():\n    cls = _make_cls(max_completions=2)\n    cli = _items_cli(\n        lambda: [CompletionItem(\"z\"), CompletionItem(\"a\"), CompletionItem(\"m\")]\n    )\n    assert [i.value for i in _complete(cls, cli)] == [\"z\", \"a\"]\n\n\ndef test_truncate_after_sort_keeps_alphabetically_first():\n    cls = _make_cls(sort_completions=True, max_completions=2)\n    cli = _items_cli(\n        lambda: [CompletionItem(\"z\"), CompletionItem(\"m\"), CompletionItem(\"a\")]\n    )\n    assert [i.value for i in _complete(cls, cli)] == [\"a\", \"m\"]\n\n\ndef test_duplicates_do_not_consume_quota():\n    cls = _make_cls(dedupe_completions=True, max_completions=2)\n    cli = _items_cli(\n        lambda: [\n            CompletionItem(\"x\"),\n            CompletionItem(\"x\", help=\"hx\"),\n            CompletionItem(\"x\"),\n            CompletionItem(\"y\"),\n            CompletionItem(\"z\"),\n        ]\n    )\n    assert _triples(_complete(cls, cli)) == [\n        (\"x\", \"plain\", \"hx\"),\n        (\"y\", \"plain\", None),\n    ]\n\n\ndef test_full_pipeline_order():\n    cls = _make_cls(dedupe_completions=True, sort_completions=True, max_completions=3)\n    cli = _items_cli(_mixed_items)\n    # dedupe -> b(hb), a(ha), C(file), c ; sort -> a, b, C, c ; truncate 3\n    assert _triples(_complete(cls, cli)) == [\n        (\"a\", \"plain\", \"ha\"),\n        (\"b\", \"plain\", \"hb\"),\n        (\"C\", \"file\", None),\n    ]\n\n\ndef test_max_completions_larger_than_list_keeps_all():\n    cls = _make_cls(max_completions=10)\n    cli = _items_cli(lambda: [CompletionItem(\"b\"), CompletionItem(\"a\")])\n    assert [i.value for i in _complete(cls, cli)] == [\"b\", \"a\"]\n\n\n@pytest.mark.usefixtures(\"_restore_available_shells\")\ndef test_registered_subclass_applies_settings_to_complete():\n    class MyshComplete(ShellComplete):\n        name = \"mysh\"\n        source_template = \"\"\n        dedupe_completions = True\n        sort_completions = True\n        max_completions = 2\n\n        def get_completion_args(self):\n            return [\"get\"], \"\"\n\n        def format_completion(self, item):\n            return item.value\n\n    add_completion_class(MyshComplete)\n    comp_cls = get_completion_class(\"mysh\")\n    assert comp_cls is MyshComplete\n    comp = comp_cls(_chain_cli(), {}, \"cli\", \"_CLI_COMPLETE\")\n    assert [i.value for i in comp.get_completions([\"get\"], \"\")] == [\"set\", \"start\"]\n    assert comp.complete() == \"set\\nstart\"\n    # the base class is not affected by the subclass settings\n    assert ShellComplete.max_completions is None\n    assert BashComplete.sort_completions is False\n\n\n# 5. max_completions=0 yields empty\n\n\ndef test_max_completions_zero_get_completions_empty():\n    cls = _make_cls(max_completions=0)\n    cli = _items_cli(_mixed_items)\n    assert _complete(cls, cli) == []\n\n\ndef test_max_completions_zero_complete_empty_string():\n    cls = _make_cls(max_completions=0)\n    cli = _items_cli(_mixed_items)\n    assert cls(cli, {}, \"cli\", \"_CLI_COMPLETE\").complete() == \"\"\n\n\n# 6. negative max_completions raises ValueError\n\n\n@pytest.mark.parametrize(\"value\", [-1, -5])\ndef test_negative_max_completions_raises(value):\n    cls = _make_cls(max_completions=value)\n    cli = _items_cli(_mixed_items)\n    with pytest.raises(ValueError) as exc_info:\n        _complete(cls, cli)\n    assert str(exc_info.value) == \"max_completions must not be negative.\"\n\n\n# 7. different types are not duplicates\n\n\ndef test_dedupe_keeps_items_with_different_types():\n    cls = _make_cls(dedupe_completions=True)\n    cli = _items_cli(\n        lambda: [\n            CompletionItem(\"p\", type=\"plain\"),\n            CompletionItem(\"p\", type=\"file\"),\n            CompletionItem(\"p\", type=\"plain\", help=\"h\"),\n            CompletionItem(\"p\", type=\"file\"),\n        ]\n    )\n    assert _triples(_complete(cls, cli)) == [\n        (\"p\", \"plain\", \"h\"),\n        (\"p\", \"file\", None),\n    ]\n"
+    }
+  ],
+  "coverage": [
+    {
+      "criterion": 1,
+      "test_functions": [
+        "test_default_class_attributes",
+        "test_builtin_shells_defaults_leave_output_unchanged",
+        "test_defaults_keep_chain_duplicates",
+        "test_defaults_complete_output_unchanged"
+      ]
+    },
+    {
+      "criterion": 2,
+      "test_functions": [
+        "test_dedupe_keeps_first_position",
+        "test_dedupe_fills_missing_help_from_later_duplicate",
+        "test_dedupe_does_not_overwrite_existing_help",
+        "test_dedupe_exact_case_comparison",
+        "test_dedupe_chain_group_sibling_appears_once"
+      ]
+    },
+    {
+      "criterion": 3,
+      "test_functions": [
+        "test_sort_casefold",
+        "test_sort_is_stable_for_case_ties",
+        "test_sort_is_stable_for_equal_values",
+        "test_sort_uses_str_of_value",
+        "test_dedupe_then_sort_case_variants_adjacent"
+      ]
+    },
+    {
+      "criterion": 4,
+      "test_functions": [
+        "test_spec_example_sort_and_truncate",
+        "test_truncate_without_sort_keeps_first_items",
+        "test_truncate_after_sort_keeps_alphabetically_first",
+        "test_duplicates_do_not_consume_quota",
+        "test_full_pipeline_order",
+        "test_max_completions_larger_than_list_keeps_all",
+        "test_registered_subclass_applies_settings_to_complete"
+      ]
+    },
+    {
+      "criterion": 5,
+      "test_functions": [
+        "test_max_completions_zero_get_completions_empty",
+        "test_max_completions_zero_complete_empty_string"
+      ]
+    },
+    {
+      "criterion": 6,
+      "test_functions": [
+        "test_negative_max_completions_raises"
+      ]
+    },
+    {
+      "criterion": 7,
+      "test_functions": [
+        "test_dedupe_keeps_items_with_different_types"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "The spec doesn't say which help text the kept item gets when more than one later duplicate has help. The tests only use cases where at most one later duplicate fills a missing help, or where the first item already has help (it is then kept).",
+    "The spec doesn't say whether dedupe returns new CompletionItem objects or changes the originals. The tests compare only (value, type, help), not object identity or extra **kwargs metadata.",
+    "The spec doesn't say whether a negative max_completions raises even when the completion list is empty, or before the list is computed. The test uses a non-empty list and only checks that get_completions raises ValueError with the exact message.",
+    "The Markdown example (Group with commands b, a, c; sort + max 2 -> ['a', 'b']) would also pass without sorting. Group.list_commands already returns names in sorted order (tests/test_shell_completion.py:89-99 shows chained commands listed alphabetically). Separate tests with custom-ordered items therefore check that sorting actually happens.",
+    "The spec says the setting is a bool / int | None, but doesn't say what happens with values like True for max_completions. No tests cover that.",
+    "The feature JSON and the Markdown section 5 agree; no disagreement found."
+  ],
+  "notes": [
+    "The extension point is ShellComplete.get_completions in src/click/shell_completion.py:353-365. It currently returns obj.shell_complete(ctx, incomplete) unchanged. complete() (lines 375-385) calls get_completions and joins format_completion output with '\\n', so max_completions=0 gives ''.",
+    "To control items exactly, the tests use an Argument with a custom shell_complete callback. Parameter.shell_complete returns CompletionItem lists from that callback as-is (src/click/core.py:2878-2886).",
+    "To get duplicates from a chain group, the tests use a chained Group whose subgroup 'get' contains a command 'set' that is also a sibling. Command.shell_complete adds the parent chain's visible commands (core.py:1451-1459) and Group.shell_complete lists subcommands first (core.py:2114-2131). With default settings, completing ['get'] gives ['set', 'set', 'start'].",
+    "The add_completion_class test restores click.shell_completion._available_shells afterwards. This follows the fixture pattern in tests/test_shell_completion.py:506-512.",
+    "Regression folder and file for this feature: tests/test_shell_completion.py (folder tests/). Final PASS_TO_PASS IDs are not chosen yet.",
+    "Validation is pending. No tests were run, no IDs were collected, and fail-at-base / pass-with-gold was not checked. At base, test_default_class_attributes and the builtin-shell default test should fail with AttributeError because the attributes don't exist yet. test_defaults_keep_chain_duplicates and test_defaults_complete_output_unchanged check existing behaviour and should already pass at base."
+  ]
+}

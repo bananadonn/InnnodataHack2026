@@ -1,0 +1,91 @@
+{
+  "feature_slug": "group-alias-prefix-resolve",
+  "files": [
+    {
+      "path": "tests/test_group_aliases.py",
+      "content": "import pytest\n\nimport click\nfrom click.exceptions import NoSuchCommand\n\n\ndef _make_group(**kwargs):\n    @click.group(**kwargs)\n    @click.pass_context\n    def g(ctx):\n        click.echo(f\"invoked={ctx.invoked_subcommand}\")\n\n    @g.command()\n    def status():\n        ctx = click.get_current_context()\n        click.echo(f\"status info_name={ctx.info_name}\")\n\n    @g.command()\n    def start():\n        ctx = click.get_current_context()\n        click.echo(f\"start info_name={ctx.info_name}\")\n\n    return g\n\n\ndef _make_plain_group(**kwargs):\n    g = click.Group(\"g\", **kwargs)\n\n    @g.command()\n    def status():\n        click.echo(\"s\")\n\n    @g.command()\n    def start():\n        click.echo(\"t\")\n\n    return g\n\n\n# --- Criterion 1: alias resolves to canonical name ---------------------------\n\n\ndef test_alias_resolves_and_invoked_subcommand_is_canonical(runner):\n    g = _make_group()\n    g.add_alias(\"st\", \"status\")\n    result = runner.invoke(g, [\"st\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"invoked=status\\nstatus info_name=status\\n\"\n\n\ndef test_alias_example_output(runner):\n    g = _make_plain_group(allow_prefix_match=True)\n    g.add_alias(\"st\", \"status\")\n    result = runner.invoke(g, [\"st\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"s\\n\"\n\n\ndef test_resolve_command_alias_returns_canonical_name():\n    g = _make_plain_group()\n    g.add_alias(\"st\", \"status\")\n    ctx = click.Context(g)\n    name, cmd, rest = g.resolve_command(ctx, [\"st\", \"a\", \"b\"])\n    assert name == \"status\"\n    assert cmd is g.commands[\"status\"]\n    assert rest == [\"a\", \"b\"]\n\n\ndef test_exact_name_beats_alias_of_same_spelling(runner):\n    g = _make_plain_group()\n    # Allowed, but never used because 'start' is a command name.\n    g.add_alias(\"start\", \"status\")\n    result = runner.invoke(g, [\"start\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"t\\n\"\n\n\ndef test_alias_beats_prefix_match(runner):\n    g = _make_plain_group(allow_prefix_match=True)\n    # 'stat' would prefix-match only 'status', but the alias wins.\n    g.add_alias(\"stat\", \"start\")\n    result = runner.invoke(g, [\"stat\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"t\\n\"\n\n\ndef test_alias_beats_ambiguous_prefix(runner):\n    g = _make_plain_group(allow_prefix_match=True)\n    g.add_alias(\"sta\", \"status\")\n    result = runner.invoke(g, [\"sta\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"s\\n\"\n\n\ndef test_alias_with_token_normalize_func(runner):\n    g = _make_group(context_settings={\"token_normalize_func\": lambda x: x.lower()})\n    g.add_alias(\"st\", \"status\")\n    result = runner.invoke(g, [\"ST\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"invoked=status\\nstatus info_name=status\\n\"\n\n\ndef test_alias_with_removed_target_falls_through_to_error(runner):\n    g = _make_plain_group()\n    g.add_alias(\"st\", \"status\")\n    del g.commands[\"status\"]\n    result = runner.invoke(g, [\"st\"])\n    assert result.exit_code == 2\n    assert \"No such command 'st'.\" in result.output\n\n\ndef test_alias_with_removed_target_falls_through_to_prefix(runner):\n    g = _make_plain_group(allow_prefix_match=True)\n    g.add_alias(\"st\", \"status\")\n    del g.commands[\"status\"]\n    # Alias is ignored; 'st' is now a unique prefix of 'start'.\n    result = runner.invoke(g, [\"st\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"t\\n\"\n\n\n# --- Criterion 2: unique prefix resolves -------------------------------------\n\n\ndef test_unique_prefix_resolves(runner):\n    g = _make_plain_group(allow_prefix_match=True)\n    result = runner.invoke(g, [\"stat\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"s\\n\"\n\n\ndef test_unique_prefix_invoked_subcommand_is_canonical(runner):\n    g = _make_group(allow_prefix_match=True)\n    assert g.allow_prefix_match is True\n    result = runner.invoke(g, [\"star\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"invoked=start\\nstart info_name=start\\n\"\n\n\ndef test_resolve_command_prefix_returns_canonical_name():\n    g = _make_plain_group(allow_prefix_match=True)\n    ctx = click.Context(g)\n    name, cmd, rest = g.resolve_command(ctx, [\"stat\", \"x\"])\n    assert name == \"status\"\n    assert cmd is g.commands[\"status\"]\n    assert rest == [\"x\"]\n\n\ndef test_exact_name_beats_prefix(runner):\n    g = click.Group(\"g\", allow_prefix_match=True)\n\n    @g.command(\"sta\")\n    def sta():\n        click.echo(\"exact\")\n\n    @g.command()\n    def status():\n        click.echo(\"s\")\n\n    @g.command()\n    def start():\n        click.echo(\"t\")\n\n    result = runner.invoke(g, [\"sta\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"exact\\n\"\n\n\ndef test_empty_token_never_prefix_matches(runner):\n    g = click.Group(\"g\", allow_prefix_match=True)\n\n    @g.command()\n    def status():\n        click.echo(\"s\")\n\n    result = runner.invoke(g, [\"\"])\n    assert result.exit_code == 2\n    assert \"s\\n\" not in result.output\n    assert \"No such command ''.\" in result.output\n\n\ndef test_prefix_no_match_gives_no_such_command(runner):\n    g = _make_plain_group(allow_prefix_match=True)\n    result = runner.invoke(g, [\"xyz\"])\n    assert result.exit_code == 2\n    assert \"No such command 'xyz'.\" in result.output\n\n\ndef test_option_like_token_is_not_prefix_matched(runner):\n    g = click.Group(\"g\", allow_prefix_match=True)\n\n    @g.command(\"-xyz\")\n    def weird():\n        click.echo(\"weird\")\n\n    result = runner.invoke(g, [\"--\", \"-x\"])\n    assert result.exit_code == 2\n    assert \"weird\" not in result.output\n    assert \"No such option\" in result.output\n\n\ndef test_prefix_with_command_collection(runner):\n    src = _make_plain_group()\n    cc = click.CommandCollection(\"cc\", sources=[src], allow_prefix_match=True)\n    result = runner.invoke(cc, [\"stat\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"s\\n\"\n\n\ndef test_prefix_uses_overridden_hooks(runner):\n    def lazy():\n        click.echo(\"lazy\")\n\n    lazy_cmd = click.Command(\"lazyrun\", callback=lazy)\n\n    class LazyGroup(click.Group):\n        def list_commands(self, ctx):\n            return [\"lazyrun\", \"ghost\"]\n\n        def get_command(self, ctx, cmd_name):\n            if cmd_name == \"lazyrun\":\n                return lazy_cmd\n            # 'ghost' is listed but does not resolve.\n            return None\n\n    g = LazyGroup(\"g\", allow_prefix_match=True)\n    result = runner.invoke(g, [\"la\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"lazy\\n\"\n\n    result = runner.invoke(g, [\"gh\"])\n    assert result.exit_code == 2\n    assert \"No such command 'gh'.\" in result.output\n\n\ndef test_alias_and_prefix_in_chain_mode(runner):\n    g = _make_plain_group(chain=True, allow_prefix_match=True)\n    g.add_alias(\"s\", \"status\")\n    result = runner.invoke(g, [\"s\", \"star\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"s\\nt\\n\"\n\n\n# --- Criterion 3: ambiguous prefix -------------------------------------------\n\n\ndef test_ambiguous_prefix_exact_message(runner):\n    g = _make_plain_group(allow_prefix_match=True)\n    result = runner.invoke(g, [\"sta\"])\n    assert result.exit_code == 2\n    assert \"Ambiguous command 'sta'. Could be: start, status.\" in result.output\n\n\ndef test_ambiguous_prefix_raises_no_such_command():\n    g = _make_plain_group(allow_prefix_match=True)\n    ctx = click.Context(g)\n    with pytest.raises(NoSuchCommand) as exc_info:\n        g.resolve_command(ctx, [\"sta\"])\n    assert exc_info.value.command_name == \"sta\"\n    assert exc_info.value.ctx is ctx\n    assert (\n        exc_info.value.format_message()\n        == \"Ambiguous command 'sta'. Could be: start, status.\"\n    )\n\n\ndef test_ambiguous_matches_are_sorted():\n    class Unsorted(click.Group):\n        def list_commands(self, ctx):\n            return [\"sc\", \"sa\", \"sb\", \"x\"]\n\n    g = Unsorted(\"g\", allow_prefix_match=True)\n    for name in (\"sc\", \"sa\", \"sb\", \"x\"):\n        g.add_command(click.Command(name))\n\n    ctx = click.Context(g)\n    with pytest.raises(NoSuchCommand) as exc_info:\n        g.resolve_command(ctx, [\"s\"])\n    assert (\n        exc_info.value.format_message()\n        == \"Ambiguous command 's'. Could be: sa, sb, sc.\"\n    )\n\n\ndef test_resilient_parsing_suppresses_ambiguity_error():\n    g = _make_plain_group(allow_prefix_match=True)\n    ctx = click.Context(g, resilient_parsing=True)\n    assert g.resolve_command(ctx, [\"sta\", \"x\"]) == (None, None, [\"x\"])\n\n\n# --- Criterion 4: prefix matching off by default -----------------------------\n\n\ndef test_prefix_matching_off_by_default(runner):\n    g = _make_plain_group()\n    assert g.allow_prefix_match is False\n    result = runner.invoke(g, [\"stat\"])\n    assert result.exit_code == 2\n    assert \"No such command 'stat'.\" in result.output\n    assert \"Ambiguous\" not in result.output\n\n\ndef test_prefix_matching_off_by_default_decorator(runner):\n    g = _make_group()\n    assert g.allow_prefix_match is False\n    result = runner.invoke(g, [\"sta\"])\n    assert result.exit_code == 2\n    assert \"No such command 'sta'.\" in result.output\n    assert \"Ambiguous\" not in result.output\n\n\ndef test_default_group_exact_resolution_unchanged(runner):\n    g = _make_plain_group()\n    result = runner.invoke(g, [\"status\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"s\\n\"\n\n\n# --- Criterion 5: hidden commands --------------------------------------------\n\n\ndef _make_hidden_group():\n    g = click.Group(\"g\", allow_prefix_match=True)\n\n    @g.command(hidden=True)\n    def secret():\n        click.echo(\"secret\")\n\n    return g\n\n\ndef test_hidden_command_not_prefix_matched(runner):\n    g = _make_hidden_group()\n    result = runner.invoke(g, [\"sec\"])\n    assert result.exit_code == 2\n    assert \"No such command 'sec'.\" in result.output\n    assert \"secret\\n\" not in result.output\n\n\ndef test_hidden_command_reachable_by_exact_name(runner):\n    g = _make_hidden_group()\n    result = runner.invoke(g, [\"secret\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"secret\\n\"\n\n\ndef test_hidden_command_reachable_by_alias(runner):\n    g = _make_hidden_group()\n    g.add_alias(\"sx\", \"secret\")\n    result = runner.invoke(g, [\"sx\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"secret\\n\"\n\n\ndef test_hidden_command_excluded_from_ambiguity(runner):\n    g = click.Group(\"g\", allow_prefix_match=True)\n\n    @g.command()\n    def status():\n        click.echo(\"s\")\n\n    @g.command(hidden=True)\n    def start():\n        click.echo(\"t\")\n\n    result = runner.invoke(g, [\"sta\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"s\\n\"\n\n\n# --- Criterion 6: add_alias errors -------------------------------------------\n\n\ndef test_add_alias_unknown_target_raises_key_error():\n    g = _make_plain_group()\n    with pytest.raises(KeyError) as exc_info:\n        g.add_alias(\"m\", \"missing\")\n    assert exc_info.value.args == (\"missing\",)\n\n\ndef test_add_alias_empty_alias_raises_value_error():\n    g = _make_plain_group()\n    with pytest.raises(ValueError) as exc_info:\n        g.add_alias(\"\", \"status\")\n    assert str(exc_info.value) == \"Alias must not be empty.\"\n\n\ndef test_add_alias_valid_returns_none():\n    g = _make_plain_group()\n    assert g.add_alias(\"st\", \"status\") is None\n"
+    }
+  ],
+  "coverage": [
+    {
+      "criterion": 1,
+      "test_functions": [
+        "test_alias_resolves_and_invoked_subcommand_is_canonical",
+        "test_alias_example_output",
+        "test_resolve_command_alias_returns_canonical_name",
+        "test_exact_name_beats_alias_of_same_spelling",
+        "test_alias_beats_prefix_match",
+        "test_alias_beats_ambiguous_prefix",
+        "test_alias_with_token_normalize_func",
+        "test_alias_with_removed_target_falls_through_to_error",
+        "test_alias_with_removed_target_falls_through_to_prefix"
+      ]
+    },
+    {
+      "criterion": 2,
+      "test_functions": [
+        "test_unique_prefix_resolves",
+        "test_unique_prefix_invoked_subcommand_is_canonical",
+        "test_resolve_command_prefix_returns_canonical_name",
+        "test_exact_name_beats_prefix",
+        "test_empty_token_never_prefix_matches",
+        "test_prefix_no_match_gives_no_such_command",
+        "test_option_like_token_is_not_prefix_matched",
+        "test_prefix_with_command_collection",
+        "test_prefix_uses_overridden_hooks",
+        "test_alias_and_prefix_in_chain_mode"
+      ]
+    },
+    {
+      "criterion": 3,
+      "test_functions": [
+        "test_ambiguous_prefix_exact_message",
+        "test_ambiguous_prefix_raises_no_such_command",
+        "test_ambiguous_matches_are_sorted",
+        "test_resilient_parsing_suppresses_ambiguity_error"
+      ]
+    },
+    {
+      "criterion": 4,
+      "test_functions": [
+        "test_prefix_matching_off_by_default",
+        "test_prefix_matching_off_by_default_decorator",
+        "test_default_group_exact_resolution_unchanged"
+      ]
+    },
+    {
+      "criterion": 5,
+      "test_functions": [
+        "test_hidden_command_not_prefix_matched",
+        "test_hidden_command_reachable_by_exact_name",
+        "test_hidden_command_reachable_by_alias",
+        "test_hidden_command_excluded_from_ambiguity"
+      ]
+    },
+    {
+      "criterion": 6,
+      "test_functions": [
+        "test_add_alias_unknown_target_raises_key_error",
+        "test_add_alias_empty_alias_raises_value_error",
+        "test_add_alias_valid_returns_none"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "The spec doesn't say whether prefix matching (step 4) uses the raw token or the token after token_normalize_func. The current code overwrites cmd_name with the normalized token (src/click/core.py:2098-2100). No test covers prefix matching combined with normalization.",
+    "The spec doesn't say whether the ambiguity and no-match errors name the raw token or the normalized one when token_normalize_func is set. The tests only use tokens that normalization leaves unchanged.",
+    "For CommandCollection, it is unclear whether a command that lives only in a source group counts as a 'registered command name' for add_alias. The spec says 'registered' without saying whether that means self.commands or get_command. The tests use prefix matching on CommandCollection but no aliases.",
+    "add_alias is said to return None, and test_add_alias_valid_returns_none asserts that. The spec says nothing about overwriting an existing alias, so that case is not tested.",
+    "Option-like tokens: the spec only says they 'keep the existing parse_args behaviour'. The test checks for 'No such option' and checks that the '-xyz' command did not run. It does not check the full message text."
+  ],
+  "notes": [
+    "The tests use the existing function-scoped `runner` fixture from tests/conftest.py:6-8, which returns CliRunner().",
+    "Baseline behaviour was read from Group.resolve_command (src/click/core.py:2088-2112): exact lookup, then the token_normalize_func retry, then a NoSuchCommand with possibilities. If ctx.resilient_parsing is true it returns (None, None, args[1:]).",
+    "NoSuchCommand.format_message (src/click/exceptions.py:298-301) adds a 'Did you mean' suffix only when possibilities is set. The spec builds the ambiguity error with message= and no possibilities, so the tests compare format_message() to the exact ambiguity text.",
+    "The default error text \"No such command 'x'.\" comes from src/click/exceptions.py:285. The existing test at tests/test_commands.py:686-689 checks for it the same way.",
+    "CommandCollection.__init__ passes **kwargs on to Group (src/click/core.py:2159-2165), so allow_prefix_match=True can be given directly.",
+    "In test_option_like_token_is_not_prefix_matched, '--' is needed so that '-x' reaches resolve_command. There, _split_opt sees the option prefix and calls parse_args, which raises NoSuchOption (src/click/core.py:2109-2110).",
+    "Regression folders/files: tests/test_commands.py, tests/test_chain.py, tests/test_basic.py, and tests/test_normalization.py (it covers token_normalize_func with groups). Final PASS_TO_PASS IDs are not chosen yet.",
+    "Validation is pending: nothing has been run. The fail-at-base and pass-with-reference checks and mutation testing still have to be done."
+  ]
+}

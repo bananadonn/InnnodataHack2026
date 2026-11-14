@@ -1,0 +1,257 @@
+{
+  "path": "src/click/decorators.py",
+  "claim": {
+    "summary": "src/click/decorators.py (626 lines) holds the decorator layer. Context-passing decorators: pass_context, pass_obj, make_pass_decorator, pass_meta_key. Builders: command and group. Parameter attachers: argument and option. Pre-configured options: confirmation_option, password_option, version_option, custom_version_option and help_option. Parameters are stashed on the function's `__click_params__` list by `_param_memo`. `command()` consumes that list when it builds the Command, and it appends in reverse so the order matches the source. All pre-configured options are thin wrappers that call `option()` with `kwargs.setdefault(...)`.",
+    "interfaces": [
+      {
+        "name": "pass_context",
+        "behavior": "Wraps f so it is called with get_current_context() as first arg, then the original args. Uses update_wrapper. Does not go through ctx.invoke.",
+        "edge_cases": [
+          "Called outside an active context, get_current_context() raises RuntimeError (raised in globals, not here)"
+        ],
+        "raises": []
+      },
+      {
+        "name": "pass_obj",
+        "behavior": "Passes get_current_context().obj as first arg, then the original args. Uses update_wrapper.",
+        "edge_cases": [
+          "obj may be None if the context has no obj set; it is passed through as None"
+        ],
+        "raises": []
+      },
+      {
+        "name": "make_pass_decorator",
+        "behavior": "Returns a decorator. At call time it takes ctx.ensure_object(object_type) if ensure=True, otherwise ctx.find_object(object_type). It then calls ctx.invoke(f, obj, *args, **kwargs).",
+        "edge_cases": [
+          "With ensure=False and no matching object found (None), it raises RuntimeError",
+          "ensure=True creates the object and stores it on the context",
+          "Uses isinstance matching via find_object, over the innermost context outward"
+        ],
+        "raises": [
+          "RuntimeError"
+        ]
+      },
+      {
+        "name": "pass_meta_key",
+        "behavior": "Returns a decorator that passes ctx.meta[key] as first arg via ctx.invoke. Builds the decorator's __doc__ from doc_description, defaulting to \"the 'key' key from :attr:`click.Context.meta`\". doc_description is keyword-only.",
+        "edge_cases": [
+          "A missing key raises KeyError from ctx.meta[key] at call time"
+        ],
+        "raises": [
+          "KeyError (indirect)"
+        ]
+      },
+      {
+        "name": "command",
+        "behavior": "Creates a Command (or `cls`) from a function. Usable bare (`@command`) or with parentheses. If `name` is callable it is treated as the function, and cls/attrs must be unset, enforced with assert. The decorator pops `params` from attrs. It appends the function's `__click_params__` in reversed order and deletes the attribute. help defaults to f.__doc__ when attrs['help'] is None. The name defaults to f.__name__ lowercased with _ replaced by -, and a trailing -command/-cmd/-group/-grp suffix is stripped. It then builds cls(name=..., callback=f, params=params, **attrs) and sets cmd.__doc__ = f.__doc__.",
+        "edge_cases": [
+          "Decorating an existing Command raises TypeError",
+          "`attrs.pop('params')` mutates the shared attrs dict, so a decorator object reused across several functions loses `params` after its first use",
+          "The caller's params list is extended in place",
+          "A name that is only a suffix (e.g. 'command') is not stripped, because rpartition finds no separator",
+          "A positional name passed together with a callable name is not allowed (assert)"
+        ],
+        "raises": [
+          "TypeError",
+          "AssertionError"
+        ]
+      },
+      {
+        "name": "group",
+        "behavior": "Same as command, with cls defaulting to Group. A callable `name` gives command(cls=cls, **attrs)(name). Otherwise it calls command(name, cls, **attrs).",
+        "edge_cases": [
+          "With bare use, a positional cls is not possible (name is the function)"
+        ],
+        "raises": [
+          "TypeError (via command, if given a Command)"
+        ]
+      },
+      {
+        "name": "argument",
+        "behavior": "Returns a decorator that builds cls(param_decls, **attrs), with cls defaulting to Argument. It attaches it through _param_memo and returns f unchanged.",
+        "edge_cases": [
+          "Works on a Command instance, where it appends directly to f.params (not reversed), or on a plain function, where it appends to __click_params__",
+          "Decorator order: the bottom-most decorator becomes the first parameter, because command() reverses the list"
+        ],
+        "raises": []
+      },
+      {
+        "name": "option",
+        "behavior": "Same as argument but builds an Option, with cls defaulting to Option. param_decls are passed as a tuple to the constructor. Attaches it via _param_memo and returns f.",
+        "edge_cases": [
+          "The Option is instantiated when the decorator is applied, not at decoration-factory time, so each application gets a fresh Option",
+          "Declaration errors come from Option.__init__ (core)"
+        ],
+        "raises": []
+      },
+      {
+        "name": "confirmation_option",
+        "behavior": "Wraps option. Default decl is ('--yes'). Defaults set with setdefault: is_flag=True, callback (calls ctx.abort() if the value is falsy), expose_value=False, prompt=_('Do you want to continue?'), help=_('Confirm the action without prompting.').",
+        "edge_cases": [
+          "Any default can be overridden through kwargs",
+          "Declining the prompt aborts, so Abort/exit code 1",
+          "Passing --yes skips the prompt"
+        ],
+        "raises": []
+      },
+      {
+        "name": "password_option",
+        "behavior": "Wraps option. Default decl is ('--password'). Defaults set with setdefault: prompt=True, confirmation_prompt=True, hide_input=True. The value stays exposed to the function.",
+        "edge_cases": [
+          "The values can be overridden in kwargs"
+        ],
+        "raises": []
+      },
+      {
+        "name": "version_option",
+        "behavior": "Adds an eager --version flag. Signature: (version=None, *param_decls, package_name=None, prog_name=None, message=None, **kwargs). If both version and package_name are None, it inspects the caller's frame globals (__name__, or __package__ if __main__) and takes the top-level segment as package_name. The callback is skipped if the value is falsy or ctx.resilient_parsing. prog_name defaults to ctx.find_root().info_name. If version is None, it calls importlib.metadata.version(package_name). On PackageNotFoundError it tries packages_distributions(): one match is used, several raise RuntimeError, none raise RuntimeError. The default message is '%(prog)s, version %(version)s', and the % mapping has only prog, package and version. It then echoes with color=ctx.color and calls ctx.exit(). Defaults set with setdefault: is_flag, expose_value=False, is_eager=True, help. callback is forced via kwargs['callback'] = callback, which overrides any user callback.",
+        "edge_cases": [
+          "Version detection is lazy (done at invocation, not at decoration time)",
+          "Caches the resolved version, prog_name and package_name through nonlocal",
+          "If version is None and package_name is None and the frame cannot be found, a RuntimeError is raised at invocation",
+          "The docstring says the message slots are frozen"
+        ],
+        "raises": [
+          "RuntimeError"
+        ]
+      },
+      {
+        "name": "custom_version_option",
+        "behavior": "Added in 8.5.0. Signature: (callback: Callable[[Context], str], *param_decls, **kwargs). The inner show_version skips when the value is falsy or ctx.resilient_parsing. Otherwise it echoes callback(ctx) with color=ctx.color and calls ctx.exit(). Default decl is ('--version'). Defaults set with setdefault: is_flag, expose_value=False, is_eager=True, help. callback is forced via kwargs['callback'] = show_version.",
+        "edge_cases": [
+          "The user's callback receives only a Context",
+          "Passing callback= in kwargs would conflict with the positional parameter name; use the positional parameter instead"
+        ],
+        "raises": []
+      },
+      {
+        "name": "help_option",
+        "behavior": "Adds a --help flag. Default decl is ('--help'). The callback show_help echoes ctx.get_help() with color=ctx.color and calls ctx.exit(), when the value is set and not resilient_parsing. Defaults set with setdefault: is_flag, expose_value=False, is_eager=True, help=_('Show this message and exit.'), callback=show_help.",
+        "edge_cases": [
+          "The callback can be overridden through kwargs",
+          "Passing custom names, e.g. '-h', is the supported way to rename help flags"
+        ],
+        "raises": []
+      }
+    ],
+    "error_conventions": "TypeError is used for double conversion of a callback into a command (message: 'Attempted to convert a callback into a command twice.'). AssertionError is used with imperative 'Use ...' messages for misuse of the bare form of command. RuntimeError is used at invocation time for missing context objects (make_pass_decorator) and for version detection failures; the message quotes the name with !r and suggests passing 'package_name'. User-facing option strings are wrapped in gettext `_()`. Failures are not raised as ClickException.",
+    "examples": [
+      {
+        "description": "Bare @click.command",
+        "code": "@click.command\ndef cli():\n    click.echo(\"hello\")",
+        "source_path": "tests/test_command_decorators.py",
+        "line_start": 6,
+        "line_end": 9
+      },
+      {
+        "description": "params= combined with a decorated argument",
+        "code": "opt = click.Argument([\"a\"])\n\n@click.command(params=[opt])\n@click.argument(\"b\")\ndef cli(a, b):\n    click.echo(f\"{a} {b}\")",
+        "source_path": "tests/test_command_decorators.py",
+        "line_start": 63,
+        "line_end": 68
+      },
+      {
+        "description": "custom_version_option with two names",
+        "code": "@click.command()\n@click.custom_version_option(lambda ctx: \"custom 9.9.9\", \"-V\", \"--version\")\ndef cli():\n    pass",
+        "source_path": "tests/test_basic.py",
+        "line_start": 936,
+        "line_end": 939
+      },
+      {
+        "description": "confirmation_option with a custom prompt, from the docs",
+        "code": "@click.confirmation_option(prompt='Are you sure you want to drop the db?')",
+        "source_path": "docs/option-decorators.md",
+        "line_start": 79,
+        "line_end": 79
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_command_decorators.py",
+        "how_it_asserts": "Uses the `runner` fixture and runner.invoke. Asserts result.exception is None and result.output equals the expected string. Also checks cli.params[i].name, and parametrizes test_generate_name over function names to check suffix stripping."
+      },
+      {
+        "path": "tests/test_basic.py",
+        "how_it_asserts": "Covers version_option (import-name resolution, ambiguity and unknown-package errors via monkeypatch, asserting exit_code != 0 and message text in str(result.exception)) and custom_version_option (exit_code == 0 and exact output). Also covers pass_context-style usage and option behaviors."
+      },
+      {
+        "path": "tests/typing/typing_aliased_group.py",
+        "how_it_asserts": "A static typing check run with mypy and pyright, not pytest. It checks that the group/command overloads type correctly. I did not read this file; other typing_*_option.py files exist for help, version, password and confirmation options."
+      }
+    ],
+    "extension_points": [
+      {
+        "name": "command(cls=...)/group(cls=...) class hook",
+        "path": "src/click/decorators.py",
+        "line": 248,
+        "what_could_attach": "Custom Command/Group subclasses are instantiated here with name, callback, params and **attrs. Extra attrs flow through to the subclass constructor."
+      },
+      {
+        "name": "option(cls=...)",
+        "path": "src/click/decorators.py",
+        "line": 374,
+        "what_could_attach": "Custom Option subclasses can be supplied. Any new pre-configured option can be written as a wrapper calling option() with setdefault kwargs."
+      },
+      {
+        "name": "argument(cls=...)",
+        "path": "src/click/decorators.py",
+        "line": 346,
+        "what_could_attach": "Custom Argument subclasses."
+      },
+      {
+        "name": "_param_memo",
+        "path": "src/click/decorators.py",
+        "line": 314,
+        "what_could_attach": "Central place where parameters are recorded (__click_params__ on a function, or Command.params)."
+      },
+      {
+        "name": "make_pass_decorator",
+        "path": "src/click/decorators.py",
+        "line": 51,
+        "what_could_attach": "A factory for typed context-object injectors. pass_meta_key at line 100 is the sibling factory for meta keys."
+      },
+      {
+        "name": "custom_version_option callback",
+        "path": "src/click/decorators.py",
+        "line": 559,
+        "what_could_attach": "A user callable that renders arbitrary version output."
+      },
+      {
+        "name": "help_option / confirmation_option callbacks",
+        "path": "src/click/decorators.py",
+        "line": 610,
+        "what_could_attach": "Callbacks can be replaced through kwargs['callback'], since they use setdefault."
+      }
+    ],
+    "gaps": [
+      {
+        "description": "command() does not copy attrs, so `attrs.pop('params')` mutates it and a decorator object reused for several functions loses its params after the first use",
+        "why_plausible": "A small robustness fix: copy attrs inside decorator().",
+        "nearest_existing": "command"
+      },
+      {
+        "description": "There is no pass-decorator for a named key of ctx.params or ctx.obj attribute, and no option-less decorator for other eager options (e.g. --debug or --verbose counting flags).",
+        "why_plausible": "Matches how pass_meta_key and help_option are built on existing primitives.",
+        "nearest_existing": "pass_meta_key"
+      },
+      {
+        "description": "version_option replaces any user-supplied `callback` (kwargs['callback'] = callback), unlike help_option and confirmation_option, which use setdefault. Its message slots are documented as frozen.",
+        "why_plausible": "The inconsistency could be documented or unified. The docstring points users to custom_version_option instead.",
+        "nearest_existing": "version_option"
+      },
+      {
+        "description": "Missing-key errors from pass_meta_key surface as a bare KeyError, with no message naming the key.",
+        "why_plausible": "A descriptive RuntimeError, like the one in make_pass_decorator, would be consistent.",
+        "nearest_existing": "pass_meta_key"
+      }
+    ],
+    "limitations": [
+      "Wrappers from pass_context and pass_obj do not use ctx.invoke, unlike make_pass_decorator and pass_meta_key.",
+      "The bare form of command/group cannot take cls or attrs (assert).",
+      "version_option's frame-inspection package detection depends on being called directly from the user's module.",
+      "Names are derived from f.__name__ only. The suffix stripping covers four fixed suffixes.",
+      "Decorator order determines the order of parameters, and this is not validated.",
+      "I did not read tests/typing/*.py contents, nor most of test_basic.py beyond the version tests."
+    ]
+  }
+}

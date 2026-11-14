@@ -3,6 +3,7 @@
 Usage:
     python -m pipeline.cli explore https://github.com/pallets/click --ref 8.5.1
     python -m pipeline.cli propose <run_id> --n 5
+    python -m pipeline.cli tests <run_id>
     python -m pipeline.cli ask <run_id> "Where are option defaults resolved?"
     python -m pipeline.cli generate --n 5
 """
@@ -76,6 +77,19 @@ def cmd_ask(run_id: str, question: str) -> int:
     return 0
 
 
+def cmd_tests(run_id: str) -> int:
+    """Draft new feature tests and report existing regression test locations."""
+    from pipeline import explore, test_agent
+
+    try:
+        output = asyncio.run(test_agent.create_tests(run_id))
+    except explore.ExploreError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"output: {output}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="pipeline", description="Harbor task factory for pallets/click")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -85,6 +99,8 @@ def build_parser() -> argparse.ArgumentParser:
     pro = sub.add_parser("propose", help="design features for an explored repository")
     pro.add_argument("run_id")
     pro.add_argument("--n", type=int, default=5, help="number of features (default 5)")
+    tests = sub.add_parser("tests", help="create feature-test drafts and find existing regression test folders")
+    tests.add_argument("run_id")
     ask = sub.add_parser("ask", help="ask a follow-up question about an explored repository")
     ask.add_argument("run_id")
     ask.add_argument("question")
@@ -102,6 +118,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_explore(args.url, args.ref)
     if args.command == "propose":
         return cmd_propose(args.run_id, args.n)
+    if args.command == "tests":
+        return cmd_tests(args.run_id)
     if args.command == "ask":
         return cmd_ask(args.run_id, args.question)
     if args.command == "generate":

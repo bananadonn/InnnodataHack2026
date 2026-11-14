@@ -1,0 +1,92 @@
+{
+  "feature_slug": "prompt-max-attempts",
+  "files": [
+    {
+      "path": "tests/test_utils/test_prompt_attempts.py",
+      "content": "import inspect\n\nimport pytest\n\nimport click\n\n\nclass Feeder:\n    \"\"\"Replacement for the termui prompt functions.\n\n    Returns scripted answers in order and records every prompt text it was\n    called with. Exceptions in the answer list are raised. When the answers\n    run out, EOFError is raised (which click turns into Abort), so tests\n    also check how many answers were consumed to distinguish an Abort caused\n    by max_attempts from one caused by running out of input.\n    \"\"\"\n\n    def __init__(self, answers):\n        self.answers = list(answers)\n        self.prompts = []\n\n    def __call__(self, text):\n        self.prompts.append(text)\n        if not self.answers:\n            raise EOFError()\n        answer = self.answers.pop(0)\n        if isinstance(answer, type) and issubclass(answer, BaseException):\n            raise answer()\n        return answer\n\n    @property\n    def reads(self):\n        return len(self.prompts)\n\n\ndef feed(monkeypatch, answers):\n    feeder = Feeder(answers)\n    monkeypatch.setattr(\"click.termui.visible_prompt_func\", feeder)\n    monkeypatch.setattr(\"click.termui.hidden_prompt_func\", feeder)\n    return feeder\n\n\ndef error_lines(output):\n    return [line for line in output.splitlines() if line.startswith(\"Error:\")]\n\n\n# 1. unlimited by default\n\n\ndef test_prompt_unlimited_by_default(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"bad\"] * 10 + [\"5\"])\n    assert click.prompt(\"n\", type=int) == 5\n    assert feeder.reads == 11\n    assert len(error_lines(capsys.readouterr().out)) == 10\n\n\ndef test_prompt_max_attempts_none_is_unlimited(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"bad\"] * 10 + [\"5\"])\n    assert click.prompt(\"n\", type=int, max_attempts=None) == 5\n    assert feeder.reads == 11\n    assert len(error_lines(capsys.readouterr().out)) == 10\n\n\ndef test_confirm_unlimited_by_default(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"x\"] * 10 + [\"y\"])\n    assert click.confirm(\"ok?\", max_attempts=None) is True\n    assert feeder.reads == 11\n    out = capsys.readouterr().out\n    assert error_lines(out) == [\"Error: invalid input\"] * 10\n\n\ndef test_max_attempts_is_last_keyword_defaulting_to_none():\n    for func in (click.prompt, click.confirm):\n        params = list(inspect.signature(func).parameters.values())\n        assert params[-1].name == \"max_attempts\"\n        assert params[-1].default is None\n    prompt_names = [p.name for p in inspect.signature(click.prompt).parameters.values()]\n    assert prompt_names[:-1] == [\n        \"text\",\n        \"default\",\n        \"hide_input\",\n        \"confirmation_prompt\",\n        \"type\",\n        \"value_proc\",\n        \"prompt_suffix\",\n        \"show_default\",\n        \"err\",\n        \"show_choices\",\n    ]\n    confirm_names = [\n        p.name for p in inspect.signature(click.confirm).parameters.values()\n    ]\n    assert confirm_names[:-1] == [\n        \"text\",\n        \"default\",\n        \"abort\",\n        \"prompt_suffix\",\n        \"show_default\",\n        \"err\",\n    ]\n\n\n# 2. prompt returns on the last allowed attempt\n\n\ndef test_prompt_returns_on_last_allowed_attempt(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"a\", \"b\", \"5\"])\n    assert click.prompt(\"n\", type=int, max_attempts=3) == 5\n    assert feeder.reads == 3\n    assert len(error_lines(capsys.readouterr().out)) == 2\n\n\ndef test_prompt_max_attempts_one_valid_first_answer(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"42\"])\n    assert click.prompt(\"n\", type=int, max_attempts=1) == 42\n    assert feeder.reads == 1\n    assert error_lines(capsys.readouterr().out) == []\n\n\ndef test_prompt_value_proc_usage_error_counts(monkeypatch, capsys):\n    def proc(value):\n        if value != \"ok\":\n            raise click.UsageError(\"nope\")\n        return value\n\n    feeder = feed(monkeypatch, [\"x\", \"ok\"])\n    assert click.prompt(\"v\", value_proc=proc, max_attempts=2) == \"ok\"\n    assert feeder.reads == 2\n    assert error_lines(capsys.readouterr().out) == [\"Error: nope\"]\n\n\n# 3. Abort raised exactly when failures reach max_attempts\n\n\ndef test_prompt_aborts_when_failures_reach_max(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"a\", \"b\", \"5\"])\n    with pytest.raises(click.Abort):\n        click.prompt(\"n\", type=int, max_attempts=2)\n    assert feeder.reads == 2\n    assert feeder.answers == [\"5\"]\n    errors = error_lines(capsys.readouterr().out)\n    assert len(errors) == 2\n    assert all(line.startswith(\"Error: \") for line in errors)\n\n\ndef test_prompt_max_attempts_one_bad_answer(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"a\", \"5\"])\n    with pytest.raises(click.Abort):\n        click.prompt(\"n\", type=int, max_attempts=1)\n    assert feeder.reads == 1\n    assert error_lines(capsys.readouterr().out) == [\n        \"Error: 'a' is not a valid integer.\"\n    ]\n\n\ndef test_prompt_bool_max_attempts_true_means_one(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"a\", \"5\"])\n    with pytest.raises(click.Abort):\n        click.prompt(\"n\", type=int, max_attempts=True)\n    assert feeder.reads == 1\n    assert len(error_lines(capsys.readouterr().out)) == 1\n\n\ndef test_prompt_empty_answer_without_default_counts(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"\", \"\", \"value\"])\n    with pytest.raises(click.Abort):\n        click.prompt(\"name\", max_attempts=2)\n    assert feeder.reads == 2\n    assert feeder.answers == [\"value\"]\n\n\ndef test_prompt_mixed_failure_kinds_share_one_count(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"\", \"a\", \"7\"])\n    with pytest.raises(click.Abort):\n        click.prompt(\"n\", type=int, max_attempts=2)\n    assert feeder.reads == 2\n    assert feeder.answers == [\"7\"]\n\n\ndef test_prompt_hide_input_masked_error_on_final_failure(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"secret\", \"5\"])\n    with pytest.raises(click.Abort):\n        click.prompt(\"pin\", type=int, hide_input=True, max_attempts=1)\n    assert feeder.reads == 1\n    out = capsys.readouterr().out\n    assert \"secret\" not in out\n    assert error_lines(out) == [\"Error: '***' is not a valid integer.\"]\n\n\ndef test_prompt_keyboard_interrupt_aborts_immediately(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"a\", KeyboardInterrupt, \"5\"])\n    with pytest.raises(click.Abort):\n        click.prompt(\"n\", type=int, max_attempts=5)\n    assert feeder.reads == 2\n    assert feeder.answers == [\"5\"]\n\n\ndef test_confirm_eof_aborts_immediately(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [EOFError, \"y\"])\n    with pytest.raises(click.Abort):\n        click.confirm(\"ok?\", max_attempts=5)\n    assert feeder.reads == 1\n    assert feeder.answers == [\"y\"]\n\n\n# 4. confirm counts invalid input\n\n\ndef test_confirm_returns_after_one_invalid(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"x\", \"y\"])\n    assert click.confirm(\"ok?\", max_attempts=2) is True\n    assert feeder.reads == 2\n    assert error_lines(capsys.readouterr().out) == [\"Error: invalid input\"]\n\n\ndef test_confirm_aborts_after_max_invalid(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"x\", \"maybe\", \"y\"])\n    with pytest.raises(click.Abort):\n        click.confirm(\"ok?\", max_attempts=2)\n    assert feeder.reads == 2\n    assert feeder.answers == [\"y\"]\n    assert error_lines(capsys.readouterr().out) == [\"Error: invalid input\"] * 2\n\n\ndef test_confirm_max_attempts_one_bad_answer(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"x\", \"y\"])\n    with pytest.raises(click.Abort):\n        click.confirm(\"ok?\", max_attempts=1)\n    assert feeder.reads == 1\n    assert error_lines(capsys.readouterr().out) == [\"Error: invalid input\"]\n\n\ndef test_confirm_empty_with_default_none_counts(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"\", \"\", \"n\"])\n    with pytest.raises(click.Abort):\n        click.confirm(\"ok?\", default=None, max_attempts=2)\n    assert feeder.reads == 2\n    assert feeder.answers == [\"n\"]\n\n\ndef test_confirm_valid_answers_on_last_attempt(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"x\", \"z\", \"no\"])\n    assert click.confirm(\"ok?\", max_attempts=3) is False\n    assert feeder.reads == 3\n    assert error_lines(capsys.readouterr().out) == [\"Error: invalid input\"] * 2\n\n\ndef test_confirm_abort_true_valid_no_still_aborts(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"n\", \"y\"])\n    with pytest.raises(click.Abort):\n        click.confirm(\"ok?\", abort=True, max_attempts=3)\n    assert feeder.reads == 1\n    assert error_lines(capsys.readouterr().out) == []\n\n\ndef test_confirm_abort_true_valid_yes_after_invalid(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"x\", \"yes\"])\n    assert click.confirm(\"ok?\", abort=True, max_attempts=2) is True\n    assert feeder.reads == 2\n    assert error_lines(capsys.readouterr().out) == [\"Error: invalid input\"]\n\n\n# 5. confirmation mismatch counts as one\n\n\ndef test_confirmation_mismatch_counts_once_and_restarts(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"a\", \"b\", \"c\", \"c\"])\n    assert click.prompt(\"p\", confirmation_prompt=True, max_attempts=2) == \"c\"\n    assert feeder.prompts == [\n        \"p: \",\n        \"Repeat for confirmation: \",\n        \"p: \",\n        \"Repeat for confirmation: \",\n    ]\n    assert error_lines(capsys.readouterr().out) == [\n        \"Error: The two entered values do not match.\"\n    ]\n\n\ndef test_confirmation_mismatch_with_max_one_aborts(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"a\", \"b\", \"c\", \"c\"])\n    with pytest.raises(click.Abort):\n        click.prompt(\"p\", confirmation_prompt=True, max_attempts=1)\n    assert feeder.reads == 2\n    assert feeder.answers == [\"c\", \"c\"]\n    assert error_lines(capsys.readouterr().out) == [\n        \"Error: The two entered values do not match.\"\n    ]\n\n\ndef test_confirmation_mismatch_and_conversion_error_share_count(\n    monkeypatch, capsys\n):\n    feeder = feed(monkeypatch, [\"1\", \"2\", \"q\", \"3\", \"3\"])\n    with pytest.raises(click.Abort):\n        click.prompt(\"n\", type=int, confirmation_prompt=True, max_attempts=2)\n    assert feeder.reads == 3\n    assert feeder.answers == [\"3\", \"3\"]\n    assert len(error_lines(capsys.readouterr().out)) == 2\n\n\n# 6. max_attempts=0 raises ValueError with exact message\n\n\n@pytest.mark.parametrize(\"value\", [0, -1, -5])\ndef test_prompt_invalid_max_attempts_raises_value_error(monkeypatch, value):\n    feeder = feed(monkeypatch, [\"5\"])\n    with pytest.raises(ValueError) as excinfo:\n        click.prompt(\"n\", type=int, max_attempts=value)\n    assert str(excinfo.value) == \"max_attempts must be at least 1.\"\n    assert feeder.reads == 0\n\n\n@pytest.mark.parametrize(\"value\", [0, -1, -5])\ndef test_confirm_invalid_max_attempts_raises_value_error(monkeypatch, value):\n    feeder = feed(monkeypatch, [\"y\"])\n    with pytest.raises(ValueError) as excinfo:\n        click.confirm(\"ok?\", max_attempts=value)\n    assert str(excinfo.value) == \"max_attempts must be at least 1.\"\n    assert feeder.reads == 0\n\n\ndef test_bool_false_max_attempts_raises_value_error(monkeypatch):\n    feeder = feed(monkeypatch, [\"5\"])\n    with pytest.raises(ValueError) as excinfo:\n        click.prompt(\"n\", type=int, max_attempts=False)\n    assert str(excinfo.value) == \"max_attempts must be at least 1.\"\n    assert feeder.reads == 0\n\n\n# 7. default-accepted empty answer does not count\n\n\ndef test_prompt_default_accepted_with_max_one(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"\"])\n    assert click.prompt(\"n\", type=int, default=7, max_attempts=1) == 7\n    assert feeder.reads == 1\n    assert error_lines(capsys.readouterr().out) == []\n\n\ndef test_prompt_default_accepted_after_failure(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"a\", \"\"])\n    assert click.prompt(\"n\", type=int, default=3, max_attempts=2) == 3\n    assert feeder.reads == 2\n    assert len(error_lines(capsys.readouterr().out)) == 1\n\n\ndef test_confirm_default_accepted_with_max_one(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"\"])\n    assert click.confirm(\"ok?\", default=True, max_attempts=1) is True\n    assert feeder.reads == 1\n    assert error_lines(capsys.readouterr().out) == []\n\n\ndef test_confirm_default_accepted_after_failure(monkeypatch, capsys):\n    feeder = feed(monkeypatch, [\"x\", \"\"])\n    assert click.confirm(\"ok?\", default=False, max_attempts=2) is False\n    assert feeder.reads == 2\n    assert error_lines(capsys.readouterr().out) == [\"Error: invalid input\"]\n"
+    }
+  ],
+  "coverage": [
+    {
+      "criterion": 1,
+      "test_functions": [
+        "test_prompt_unlimited_by_default",
+        "test_prompt_max_attempts_none_is_unlimited",
+        "test_confirm_unlimited_by_default",
+        "test_max_attempts_is_last_keyword_defaulting_to_none"
+      ]
+    },
+    {
+      "criterion": 2,
+      "test_functions": [
+        "test_prompt_returns_on_last_allowed_attempt",
+        "test_prompt_max_attempts_one_valid_first_answer",
+        "test_prompt_value_proc_usage_error_counts"
+      ]
+    },
+    {
+      "criterion": 3,
+      "test_functions": [
+        "test_prompt_aborts_when_failures_reach_max",
+        "test_prompt_max_attempts_one_bad_answer",
+        "test_prompt_bool_max_attempts_true_means_one",
+        "test_prompt_empty_answer_without_default_counts",
+        "test_prompt_mixed_failure_kinds_share_one_count",
+        "test_prompt_hide_input_masked_error_on_final_failure",
+        "test_prompt_keyboard_interrupt_aborts_immediately",
+        "test_confirm_eof_aborts_immediately"
+      ]
+    },
+    {
+      "criterion": 4,
+      "test_functions": [
+        "test_confirm_returns_after_one_invalid",
+        "test_confirm_aborts_after_max_invalid",
+        "test_confirm_max_attempts_one_bad_answer",
+        "test_confirm_empty_with_default_none_counts",
+        "test_confirm_valid_answers_on_last_attempt",
+        "test_confirm_abort_true_valid_no_still_aborts",
+        "test_confirm_abort_true_valid_yes_after_invalid"
+      ]
+    },
+    {
+      "criterion": 5,
+      "test_functions": [
+        "test_confirmation_mismatch_counts_once_and_restarts",
+        "test_confirmation_mismatch_with_max_one_aborts",
+        "test_confirmation_mismatch_and_conversion_error_share_count"
+      ]
+    },
+    {
+      "criterion": 6,
+      "test_functions": [
+        "test_prompt_invalid_max_attempts_raises_value_error",
+        "test_confirm_invalid_max_attempts_raises_value_error",
+        "test_bool_false_max_attempts_raises_value_error"
+      ]
+    },
+    {
+      "criterion": 7,
+      "test_functions": [
+        "test_prompt_default_accepted_with_max_one",
+        "test_prompt_default_accepted_after_failure",
+        "test_confirm_default_accepted_with_max_one",
+        "test_confirm_default_accepted_after_failure"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "An empty answer with default=None counts as a failed attempt, but the current code (src/click/termui.py:261-270 for prompt, 337-341 for confirm) prints no error line for an empty prompt() answer. The spec doesn't say whether the gold version adds one. So the empty-answer prompt tests only check how many answers were read and that Abort is raised, not the output.",
+    "The spec says the masked error line is printed when hide_input is set. The tests expect the existing masking format \"Error: '***' is not a valid integer.\", taken from _HIDDEN_INPUT_MASK (termui.py:58), _mask_hidden_input (termui.py:71) and the IntParamType message (types.py:605). That assumes the error text itself does not change.",
+    "When a default value fails conversion via value_proc (e.g. an out-of-range default), the spec doesn't say whether that counts as a failed attempt. No test depends on it.",
+    "The spec does not say whether ValueError for max_attempts < 1 is raised before or after validating other arguments. The tests only check it happens before any input is read. Reading False as 0, and therefore a ValueError, comes from the rule that bools follow int semantics."
+  ],
+  "notes": [
+    "How the tests run: they monkeypatch click.termui.visible_prompt_func and hidden_prompt_func (the hook used at termui.py:236 and 330, and also in tests/test_utils/test_prompt.py:81-82) with a scripted feeder. When the scripted answers run out the feeder raises EOFError, which becomes Abort. So every Abort test also checks how many answers were read and which were left over, to tell a max_attempts Abort apart from running out of input.",
+    "The error output is read with capsys. Because the prompt function is mocked, the prompt text itself is never echoed, so only the 'Error:' lines show up in stdout.",
+    "No test for 'Option.prompt_for_value unchanged' was written: it would pass on the base code too, so it can't be a FAIL_TO_PASS test. It is better covered by the existing regression tests (tests/test_options.py, tests/test_termui.py).",
+    "test_max_attempts_is_last_keyword_defaulting_to_none checks the positional parameter order using inspect.signature. The spec says the new keyword is appended last and the existing order is kept.",
+    "Regression test files to consider for PASS_TO_PASS: tests/test_utils/test_prompt.py and tests/test_termui.py, plus the confirm/prompt-related tests in tests/test_options.py. Final IDs have not been selected yet.",
+    "Validation is still pending: nothing has been run. Base failure, oracle pass and mutation checks have not been done."
+  ]
+}

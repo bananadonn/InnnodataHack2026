@@ -21,12 +21,13 @@ PYTHON_IMAGE = "python:3.12-slim"
 INSTANCE_ID_PREFIX = "pallets__click"
 
 # --- Models --------------------------------------------------------------------------
-# Everything that CREATES a task runs on Sonnet through the Claude Agent SDK, which reads
+# Task creation runs through the Claude Agent SDK, which reads
 # ANTHROPIC_API_KEY from the environment: exploring the repo, designing features, and writing
 # the spec, gold patch and hidden tests. Haiku is only the benchmark solver.
 EXPLORE_MODEL = "claude-sonnet-5-5"
-PROPOSE_MODEL = "claude-sonnet-5-5"
+PROPOSE_MODEL = "opus"
 GENERATION_MODEL = "claude-sonnet-5-5"
+TEST_MODEL = "opus"
 
 # Caps for every agent session. Budgets are the SDK's client-side estimate and can overshoot slightly.
 AGENT_MAX_TURNS = 60
@@ -36,6 +37,8 @@ MAP_MAX_BUDGET_USD = 2.00      # repo map (one session)
 CARD_MAX_BUDGET_USD = 1.50     # deep dive, per module
 UPSTREAM_MAX_BUDGET_USD = 1.50 # upstream novelty check (web)
 PROPOSE_MAX_BUDGET_USD = 4.00  # feature design
+TEST_DISCOVERY_MAX_BUDGET_USD = 1.00
+TEST_MAX_BUDGET_USD = 2.00    # per feature, test authoring only
 DEEP_DIVE_MAX_MODULES = 8
 CLONE_TIMEOUT_SEC = 300
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"

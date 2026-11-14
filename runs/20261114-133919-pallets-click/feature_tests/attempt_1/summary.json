@@ -1,0 +1,6 @@
+{
+  "status": "interrupted",
+  "error": "Agent run interrupted after waiting without any tool activity or SDK result; cause unconfirmed. SDK usage unavailable.",
+  "features": [],
+  "usage": null
+}

@@ -1,0 +1,91 @@
+{
+  "feature_slug": "choice-prefix-match",
+  "files": [
+    {
+      "path": "tests/test_types/test_Choice_prefix.py",
+      "content": "import enum\n\nimport pytest\n\nimport click\n\n\nclass Fmt(enum.Enum):\n    JSON = \"j\"\n    JSONL = \"jl\"\n    YAML = \"y\"\n\n\ndef _fmt_choice(**kwargs):\n    return click.Choice([\"json\", \"jsonl\", \"yaml\"], **kwargs)\n\n\n# --- 1. unique prefix returns original choice ---------------------------------\n\n\ndef test_prefix_match_attribute_stored():\n    assert _fmt_choice(prefix_match=True).prefix_match is True\n    assert _fmt_choice().prefix_match is False\n\n\ndef test_unique_prefix_returns_choice():\n    c = _fmt_choice(prefix_match=True)\n    assert c.convert(\"y\", None, None) == \"yaml\"\n    assert c.convert(\"ya\", None, None) == \"yaml\"\n    assert c.convert(\"jsonl\", None, None) == \"jsonl\"\n\n\ndef test_unique_prefix_longer_than_shared_part():\n    c = _fmt_choice(prefix_match=True)\n    assert c.convert(\"jsonl\", None, None) == \"jsonl\"\n\n\ndef test_unique_prefix_returns_original_enum_member():\n    c = click.Choice(Fmt, prefix_match=True)\n    assert c.convert(\"Y\", None, None) is Fmt.YAML\n\n\ndef test_enum_prefix_compares_member_names_not_values():\n    c = click.Choice(Fmt, prefix_match=True)\n    # \"y\" is the value of YAML but not a prefix of any member name.\n    with pytest.raises(click.BadParameter):\n        c.convert(\"y\", None, None)\n\n\ndef test_non_str_input_and_choices_return_original_object():\n    c = click.Choice([10, 12, 20], prefix_match=True)\n    result = c.convert(2, None, None)\n    assert result == 20\n    assert isinstance(result, int)\n\n\ndef test_prefix_respects_token_normalize_func():\n    @click.command(context_settings={\"token_normalize_func\": str.lower})\n    @click.option(\"--x\", type=_fmt_choice(prefix_match=True))\n    def cli(x):\n        click.echo(repr(x))\n\n    result = click.testing.CliRunner().invoke(cli, [\"--x\", \"Y\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"'yaml'\\n\"\n\n\n# --- 2. ambiguous prefix raises BadParameter with exact message ---------------\n\n\ndef test_ambiguous_prefix_message():\n    c = _fmt_choice(prefix_match=True)\n    with pytest.raises(click.BadParameter) as exc_info:\n        c.convert(\"js\", None, None)\n    assert exc_info.value.message == \"'js' is ambiguous: matches 'json', 'jsonl'.\"\n\n\ndef test_ambiguous_prefix_candidates_in_choice_order():\n    c = click.Choice([\"jsonl\", \"yaml\", \"json\"], prefix_match=True)\n    with pytest.raises(click.BadParameter) as exc_info:\n        c.convert(\"j\", None, None)\n    assert exc_info.value.message == \"'j' is ambiguous: matches 'jsonl', 'json'.\"\n\n\ndef test_ambiguous_enum_lists_member_names():\n    c = click.Choice(Fmt, prefix_match=True)\n    with pytest.raises(click.BadParameter) as exc_info:\n        c.convert(\"JS\", None, None)\n    assert exc_info.value.message == \"'JS' is ambiguous: matches 'JSON', 'JSONL'.\"\n\n\ndef test_duplicate_normalized_choices_are_ambiguous():\n    c = click.Choice([\"Json\", \"JSON\"], case_sensitive=False, prefix_match=True)\n    with pytest.raises(click.BadParameter) as exc_info:\n        c.convert(\"js\", None, None)\n    assert exc_info.value.message == \"'js' is ambiguous: matches 'json', 'json'.\"\n\n\ndef test_ambiguous_non_str_input():\n    c = click.Choice([10, 12, 20], prefix_match=True)\n    with pytest.raises(click.BadParameter) as exc_info:\n        c.convert(1, None, None)\n    assert \"is ambiguous: matches '10', '12'.\" in exc_info.value.message\n\n\n# --- 3. exact match wins over longer choices ----------------------------------\n\n\ndef test_exact_match_beats_prefix():\n    c = _fmt_choice(prefix_match=True)\n    assert c.convert(\"json\", None, None) == \"json\"\n\n\ndef test_exact_match_beats_prefix_case_insensitive():\n    c = _fmt_choice(case_sensitive=False, prefix_match=True)\n    assert c.convert(\"JSON\", None, None) == \"json\"\n\n\ndef test_exact_enum_match_beats_prefix():\n    c = click.Choice(Fmt, prefix_match=True)\n    assert c.convert(\"JSON\", None, None) is Fmt.JSON\n\n\n# --- 4. case-insensitive prefix -----------------------------------------------\n\n\ndef test_case_insensitive_unique_prefix():\n    c = click.Choice([\"Json\", \"JSONL\", \"Yaml\"], case_sensitive=False, prefix_match=True)\n    assert c.convert(\"YA\", None, None) == \"Yaml\"\n    assert c.convert(\"y\", None, None) == \"Yaml\"\n\n\ndef test_case_insensitive_ambiguous_uses_casefolded_candidates():\n    c = click.Choice([\"Json\", \"JSONL\", \"Yaml\"], case_sensitive=False, prefix_match=True)\n    with pytest.raises(click.BadParameter) as exc_info:\n        c.convert(\"JS\", None, None)\n    assert exc_info.value.message == \"'JS' is ambiguous: matches 'json', 'jsonl'.\"\n\n\ndef test_case_sensitive_prefix_does_not_ignore_case():\n    c = _fmt_choice(prefix_match=True)\n    with pytest.raises(click.BadParameter) as exc_info:\n        c.convert(\"Y\", None, None)\n    assert exc_info.value.message == \"'Y' is not one of 'json', 'jsonl', 'yaml'.\"\n\n\n# --- 5. empty string is invalid -----------------------------------------------\n\n\ndef test_empty_string_is_invalid_choice():\n    c = _fmt_choice(prefix_match=True)\n    with pytest.raises(click.BadParameter) as exc_info:\n        c.convert(\"\", None, None)\n    assert exc_info.value.message == \"'' is not one of 'json', 'jsonl', 'yaml'.\"\n\n\ndef test_no_candidate_gives_invalid_choice_message():\n    c = _fmt_choice(prefix_match=True)\n    with pytest.raises(click.BadParameter) as exc_info:\n        c.convert(\"x\", None, None)\n    assert exc_info.value.message == c.get_invalid_choice_message(\"x\", ctx=None)\n    assert exc_info.value.message == \"'x' is not one of 'json', 'jsonl', 'yaml'.\"\n\n\n# --- 6. default behaviour unchanged -------------------------------------------\n\n\ndef test_default_rejects_prefix():\n    c = _fmt_choice()\n    with pytest.raises(click.BadParameter) as exc_info:\n        c.convert(\"y\", None, None)\n    assert exc_info.value.message == \"'y' is not one of 'json', 'jsonl', 'yaml'.\"\n\n\ndef test_default_rejects_ambiguous_prefix_with_invalid_message():\n    c = _fmt_choice()\n    with pytest.raises(click.BadParameter) as exc_info:\n        c.convert(\"js\", None, None)\n    assert exc_info.value.message == \"'js' is not one of 'json', 'jsonl', 'yaml'.\"\n\n\ndef test_default_exact_match_still_works():\n    c = _fmt_choice()\n    assert c.convert(\"yaml\", None, None) == \"yaml\"\n    assert click.Choice(Fmt).convert(\"YAML\", None, None) is Fmt.YAML\n\n\ndef test_info_dict_has_no_new_key():\n    for c in (_fmt_choice(), _fmt_choice(prefix_match=True)):\n        assert c.to_info_dict() == {\n            \"param_type\": \"Choice\",\n            \"name\": \"choice\",\n            \"choices\": (\"json\", \"jsonl\", \"yaml\"),\n            \"case_sensitive\": True,\n        }\n\n\ndef test_missing_message_unchanged():\n    a = _fmt_choice()\n    b = _fmt_choice(prefix_match=True)\n    assert b.get_missing_message(None, None) == a.get_missing_message(None, None)\n\n\n# --- 7. end to end through CliRunner ------------------------------------------\n\n\ndef _make_cli():\n    @click.command()\n    @click.option(\"--x\", type=_fmt_choice(prefix_match=True))\n    def cli(x):\n        click.echo(f\"x={x}\")\n\n    return cli\n\n\ndef test_cli_unique_prefix(runner):\n    result = runner.invoke(_make_cli(), [\"--x\", \"y\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"x=yaml\\n\"\n\n\ndef test_cli_exact_match(runner):\n    result = runner.invoke(_make_cli(), [\"--x\", \"json\"])\n    assert result.exit_code == 0, result.output\n    assert result.output == \"x=json\\n\"\n\n\ndef test_cli_ambiguous_prefix(runner):\n    result = runner.invoke(_make_cli(), [\"--x\", \"js\"])\n    assert result.exit_code == 2\n    assert (\n        \"Invalid value for '--x': 'js' is ambiguous: matches 'json', 'jsonl'.\"\n        in result.output\n    )\n\n\ndef test_cli_ambiguous_attaches_ctx_and_param(runner):\n    result = runner.invoke(_make_cli(), [\"--x\", \"js\"], standalone_mode=False)\n    exc = result.exception\n    assert isinstance(exc, click.BadParameter)\n    assert exc.ctx is not None\n    assert exc.param is not None\n    assert exc.param.name == \"x\"\n\n\ndef test_cli_empty_value_invalid(runner):\n    result = runner.invoke(_make_cli(), [\"--x\", \"\"])\n    assert result.exit_code == 2\n    assert (\n        \"Invalid value for '--x': '' is not one of 'json', 'jsonl', 'yaml'.\"\n        in result.output\n    )\n"
+    }
+  ],
+  "coverage": [
+    {
+      "criterion": 1,
+      "test_functions": [
+        "test_prefix_match_attribute_stored",
+        "test_unique_prefix_returns_choice",
+        "test_unique_prefix_longer_than_shared_part",
+        "test_unique_prefix_returns_original_enum_member",
+        "test_enum_prefix_compares_member_names_not_values",
+        "test_non_str_input_and_choices_return_original_object",
+        "test_prefix_respects_token_normalize_func"
+      ]
+    },
+    {
+      "criterion": 2,
+      "test_functions": [
+        "test_ambiguous_prefix_message",
+        "test_ambiguous_prefix_candidates_in_choice_order",
+        "test_ambiguous_enum_lists_member_names",
+        "test_duplicate_normalized_choices_are_ambiguous",
+        "test_ambiguous_non_str_input"
+      ]
+    },
+    {
+      "criterion": 3,
+      "test_functions": [
+        "test_exact_match_beats_prefix",
+        "test_exact_match_beats_prefix_case_insensitive",
+        "test_exact_enum_match_beats_prefix"
+      ]
+    },
+    {
+      "criterion": 4,
+      "test_functions": [
+        "test_case_insensitive_unique_prefix",
+        "test_case_insensitive_ambiguous_uses_casefolded_candidates",
+        "test_case_sensitive_prefix_does_not_ignore_case"
+      ]
+    },
+    {
+      "criterion": 5,
+      "test_functions": [
+        "test_empty_string_is_invalid_choice",
+        "test_no_candidate_gives_invalid_choice_message",
+        "test_cli_empty_value_invalid"
+      ]
+    },
+    {
+      "criterion": 6,
+      "test_functions": [
+        "test_default_rejects_prefix",
+        "test_default_rejects_ambiguous_prefix_with_invalid_message",
+        "test_default_exact_match_still_works",
+        "test_info_dict_has_no_new_key",
+        "test_missing_message_unchanged"
+      ]
+    },
+    {
+      "criterion": 7,
+      "test_functions": [
+        "test_cli_unique_prefix",
+        "test_cli_exact_match",
+        "test_cli_ambiguous_prefix",
+        "test_cli_ambiguous_attaches_ctx_and_param"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "'raw input in single quotes' could mean f\"'{value}'\" or repr(value). These are the same for plain ASCII strings without quotes, which is all the tests use. For non-str input (test_ambiguous_non_str_input) the test checks only the ' is ambiguous: matches '10', '12'.' suffix, because the spec says nothing about how a raw int is quoted.",
+    "The spec says candidates are counted per original choice. But Choice._normalized_mapping (src/click/types.py:398-404) is a dict keyed by choice, and normalize_choice says each choice must have a unique normalized value (types.py:409). test_duplicate_normalized_choices_are_ambiguous uses two distinct originals ('Json', 'JSON') that casefold to the same string and expects \"'js' is ambiguous: matches 'json', 'json'.\" The spec does not cover choices that are themselves equal duplicates.",
+    "The spec says 'with enum choices, prefixes compare against member names'. It does not say whether the case-sensitive default applies to member names. The tests assume it does: 'Y' matches YAML, and the lowercase 'y' (the member's value) is rejected.",
+    "The spec does not cover prefix matching with token_normalize_func directly; it only says normalize_choice is applied. test_prefix_respects_token_normalize_func assumes str.lower is applied to both the input and the choices before the prefix comparison.",
+    "The Markdown and the JSON for this feature match; no conflict found."
+  ],
+  "notes": [
+    "The tests use the existing function-scoped `runner` fixture from tests/conftest.py (lines 6-8). A few tests build their own click.testing.CliRunner().",
+    "Base behaviour comes from src/click/types.py:375-379 (__init__ has no prefix_match yet) and 454-476 (convert does exact match only). The invalid-choice message format comes from types.py:478-490 and tests/test_types/test_Choice.py:7.",
+    "The expected info dict in test_info_dict_has_no_new_key assumes ParamType.to_info_dict returns the keys param_type and name. That matches the existing shape in tests/test_info_dict.py but was not re-read in this session; check it when validating.",
+    "Under pyproject filterwarnings=error, any warning raised by the implementation would fail these tests.",
+    "Regression candidates: tests/test_types/test_Choice.py, tests/test_info_dict.py, tests/test_options.py, plus the Choice tests in tests/test_basic.py (lines ~520-610) and tests/test_normalization.py. Final PASS_TO_PASS IDs have not been selected.",
+    "Validation is pending. Nothing was run: there are no base/oracle/mutation results and no collected test IDs."
+  ]
+}

@@ -1,0 +1,159 @@
+{
+  "pinned_version": "8.5.1 (released 2026-11-09 per repo/CHANGES.md:1-3; GitHub releases page shows 06 Nov)",
+  "latest_version": "8.5.1 released; main is 8.6.0 (unreleased)",
+  "changes_after_pin": [
+    {
+      "title": "Drop Python 3.10 (#3920)",
+      "url": "https://github.com/pallets/click/pull/3920",
+      "summary": "8.6.0 unreleased: Python 3.10 no longer supported."
+    },
+    {
+      "title": "Deprecate non-identifier/keyword/non-lowercase parameter names (#3866)",
+      "url": "https://github.com/pallets/click/pull/3866",
+      "summary": "Warns now; TypeError in Click 9.0."
+    },
+    {
+      "title": "Add Parameter.spec, deprecate human_readable_name (#3877)",
+      "url": "https://github.com/pallets/click/pull/3877",
+      "summary": "spec returns how the user types the parameter. get_help_spec moves to Parameter. Error messages and warnings show the spec (--my-option) rather than the internal name."
+    },
+    {
+      "title": "CliRunner echo_stdin shows ^D / ^Z (#3878)",
+      "url": "https://github.com/pallets/click/pull/3878",
+      "summary": "\\x04 and \\x1a stdin bytes display as ^D/^Z and are no longer passed to the command."
+    },
+    {
+      "title": "CliRunner.invoke context_settings argument (#3896)",
+      "url": "https://github.com/pallets/click/pull/3896",
+      "summary": "Passes context settings such as color (closes issue 2110)."
+    },
+    {
+      "title": "Help pages no longer wrap inside hyphenated words (#3902)",
+      "url": "https://github.com/pallets/click/pull/3902",
+      "summary": "Also covers long words (issue 3362)."
+    },
+    {
+      "title": "Docs: Nuitka standalone guide (#3897), catch_exceptions testing docs (#3917), Click UI scope (#3898)",
+      "url": "https://github.com/pallets/click/pulls?q=is%3Apr+is%3Amerged",
+      "summary": "Documentation-only merges after the pin."
+    },
+    {
+      "title": "Python 3.15 added to test matrix (#3909)",
+      "url": "https://github.com/pallets/click/pull/3909",
+      "summary": "CI change."
+    }
+  ],
+  "open_or_planned": [
+    {
+      "title": "#3880 Split PAGER/EDITOR with Windows-specific shlex equivalent",
+      "url": "https://github.com/pallets/click/pull/3880",
+      "summary": "Open PR."
+    },
+    {
+      "title": "#3827 Require parameter name to be a non-keyword Python identifier",
+      "url": "https://github.com/pallets/click/pull/3827",
+      "summary": "Open PR."
+    },
+    {
+      "title": "#3921 Python 3.11 cleanups",
+      "url": "https://github.com/pallets/click/pull/3921",
+      "summary": "Open PR."
+    },
+    {
+      "title": "#3859 / #3412 Add pyrefly type checking",
+      "url": "https://github.com/pallets/click/pull/3859",
+      "summary": "Open PRs."
+    },
+    {
+      "title": "#2880 PromptBuilder format customization for prompt/confirm",
+      "url": "https://github.com/pallets/click/pull/2880",
+      "summary": "Open PR."
+    },
+    {
+      "title": "#2864 Improve internationalization",
+      "url": "https://github.com/pallets/click/pull/2864",
+      "summary": "Open PR."
+    },
+    {
+      "title": "#2784 Allow adding dynamic parameters to every Context",
+      "url": "https://github.com/pallets/click/pull/2784",
+      "summary": "Open PR."
+    },
+    {
+      "title": "#3097 WIP help page customization low-level API",
+      "url": "https://github.com/pallets/click/pull/3097",
+      "summary": "Open WIP PR."
+    },
+    {
+      "title": "#3154 Click 9.0 / #3156 remove deprecated code for 9.0",
+      "url": "https://github.com/pallets/click/issues/3154",
+      "summary": "Planned major release."
+    },
+    {
+      "title": "#3652 Append ellipsis to metavars when multiple=True",
+      "url": "https://github.com/pallets/click/issues/3652",
+      "summary": "Open feature request."
+    },
+    {
+      "title": "#3036 Support set/frozenset/dict as native types",
+      "url": "https://github.com/pallets/click/issues/3036",
+      "summary": "Open feature request."
+    },
+    {
+      "title": "#2992 Add get_usage() output to get_info_dict()",
+      "url": "https://github.com/pallets/click/issues/2992",
+      "summary": "Open feature request."
+    },
+    {
+      "title": "#2676 Automatically parse negative-number arguments",
+      "url": "https://github.com/pallets/click/issues/2676",
+      "summary": "Open feature request."
+    },
+    {
+      "title": "#944 Color support for exceptions",
+      "url": "https://github.com/pallets/click/issues/944",
+      "summary": "Open feature request."
+    },
+    {
+      "title": "#3915 PowerShell completion mangles Windows paths",
+      "url": "https://github.com/pallets/click/issues/3915",
+      "summary": "Open bug."
+    },
+    {
+      "title": "#3914 show_envvar drops envvar in errors with auto_envvar_prefix",
+      "url": "https://github.com/pallets/click/issues/3914",
+      "summary": "Open bug."
+    },
+    {
+      "title": "#3406 Migrate sentinels to PEP 661",
+      "url": "https://github.com/pallets/click/issues/3406",
+      "summary": "Open issue."
+    }
+  ],
+  "do_not_propose": [
+    "PowerShell shell completion (in 8.5.0)",
+    "Argument(help=...) and Positional arguments help section (8.5.0/8.5.1)",
+    "Parameter-level help argument; Option.get_help_spec (8.5.1)",
+    "Parameter.spec / human-readable parameter spec in errors (merged, 8.6.0)",
+    "CliRunner.invoke context_settings (merged)",
+    "CliRunner capture='fd' mode (8.4.0)",
+    "NoSuchCommand with misspelled-command suggestions (8.4.0)",
+    "custom_version_option (8.5.0)",
+    "get_pager_file and incremental echo_via_pager (8.4.x)",
+    "deepcopy/pickle support for Parameter and Command (8.5.1)",
+    "Hyphen-safe help wrapping (merged)",
+    "Deprecation of invalid/non-lowercase parameter names (merged)",
+    "Python 3.10 drop (merged)",
+    "Smarter short-help sentence detection (8.5.1)",
+    "show_envvar for envvar sequences (8.5.1)",
+    "PromptBuilder prompt customization, i18n improvements, dynamic Context params, pyrefly, help-page customization API (open PRs)"
+  ],
+  "limitations": [
+    "Could not load the repo's CHANGES.rst; the file is CHANGES.md. Used that.",
+    "Upstream CHANGES.md on HEAD was read via summarizing fetch; only the 8.6.0 section was seen.",
+    "Release date mismatch: repo says 2026-11-09, releases page says 06 Nov.",
+    "GitHub list pages were summarized, so only 25 of 74 open issues were seen and the merged-PR list shows page 1 only.",
+    "The git index reported a non-monotonic pack error, but describe still worked.",
+    "Did not verify pinned code line-by-line; this report covers upstream state only."
+  ]
+}

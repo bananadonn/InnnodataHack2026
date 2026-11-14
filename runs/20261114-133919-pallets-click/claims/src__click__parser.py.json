@@ -1,0 +1,283 @@
+{
+  "path": "src/click/parser.py",
+  "claim": {
+    "summary": "src/click/parser.py is Click's internal, optparse-derived parser. _OptionParser holds short/long option tables and positional _Argument specs. parse_args first scans options (_process_args_for_options) and then assigns positionals via _unpack_args. It returns (opts dict, leftover args, order list of Parameter objects). Core's Command.make_parser builds it and Option/Argument.add_to_parser register params. Old public names (OptionParser, Option, Argument, split_opt, normalize_opt, ParsingState, split_arg_string) are served by a module __getattr__ that emits DeprecationWarning.",
+    "interfaces": [
+      {
+        "name": "_OptionParser",
+        "behavior": "Internal parser. __init__(ctx=None) sets allow_interspersed_args=True and ignore_unknown_options=False, then copies both from ctx if given. Maintains _short_opt, _long_opt dicts, _opt_prefixes={'-','--'}, _args list. Docstring marks it deprecated 8.2, removal in 9.0.",
+        "edge_cases": [
+          "ctx None is allowed: no token normalization, no resilient parsing"
+        ],
+        "raises": []
+      },
+      {
+        "name": "_OptionParser.add_option",
+        "behavior": "Normalizes each opt string via _normalize_opt (ctx.token_normalize_func), builds an _Option, adds its prefixes to _opt_prefixes, and registers short opts in _short_opt and long opts in _long_opt. dest is not inferred. Actions: store, store_const, append, append_const, count (default store).",
+        "edge_cases": [
+          "Option string with no prefix (starts with alnum) raises ValueError from _Option",
+          "Later registration of the same opt string overwrites the earlier one",
+          "Custom prefixes such as + or ! get added to _opt_prefixes"
+        ],
+        "raises": [
+          "ValueError"
+        ]
+      },
+      {
+        "name": "_OptionParser.add_argument",
+        "behavior": "Appends an _Argument(obj, dest, nargs) to _args. Order of calls determines positional order.",
+        "edge_cases": [
+          "nargs=-1 means consume the remainder; two nargs<0 args later raise TypeError in _unpack_args"
+        ],
+        "raises": []
+      },
+      {
+        "name": "_OptionParser.parse_args",
+        "behavior": "Creates _ParsingState(args), runs _process_args_for_options then _process_args_for_args, and returns (state.opts, state.largs, state.order). Mutates the passed list (rargs is popped).",
+        "edge_cases": [
+          "UsageError is swallowed when ctx is not None and ctx.resilient_parsing is True, returning the partial state",
+          "Without ctx, UsageError always propagates"
+        ],
+        "raises": [
+          "UsageError",
+          "NoSuchOption",
+          "BadOptionUsage",
+          "BadArgumentUsage",
+          "TypeError"
+        ]
+      },
+      {
+        "name": "_OptionParser._process_args_for_options",
+        "behavior": "Loop popping from rargs. '--' stops option processing and is consumed (dropped). An arg whose first char is in _opt_prefixes and len>1 goes to _process_opts. Otherwise, with allow_interspersed_args it is appended to largs, else it is pushed back onto rargs and parsing stops.",
+        "edge_cases": [
+          "A lone '-' is treated as a positional",
+          "Without interspersed args, the first non-option stops option parsing"
+        ],
+        "raises": []
+      },
+      {
+        "name": "_OptionParser._process_args_for_args",
+        "behavior": "Calls _unpack_args on largs+rargs using each arg's nargs, calls each _Argument.process with its slice, then sets largs to the leftovers and rargs to [].",
+        "edge_cases": [
+          "Surplus values stay in largs, which is the returned leftover list",
+          "Missing values become UNSET"
+        ],
+        "raises": [
+          "BadArgumentUsage",
+          "TypeError"
+        ]
+      },
+      {
+        "name": "_OptionParser._process_opts",
+        "behavior": "Splits arg on the first '=' into long_opt and explicit_value, normalizes, and tries _match_long_opt. On NoSuchOption: if arg[:2] is not a known prefix (for example '-abc'), falls back to _match_short_opt. Otherwise, re-raises unless ignore_unknown_options, in which case the whole arg goes to largs.",
+        "edge_cases": [
+          "'-foo' can match a registered long option with a single dash",
+          "Short-option clusters are only tried for single-char prefixes"
+        ],
+        "raises": [
+          "NoSuchOption"
+        ]
+      },
+      {
+        "name": "_OptionParser._match_long_opt",
+        "behavior": "Looks up opt in _long_opt. If the option takes a value, an explicit '=value' is inserted at the front of rargs and then read by _get_value_from_state. Otherwise the value is UNSET, then option.process is called.",
+        "edge_cases": [
+          "Unknown opt raises NoSuchOption with possibilities=_long_opt for suggestions",
+          "A flag given '=value' raises BadOptionUsage"
+        ],
+        "raises": [
+          "NoSuchOption",
+          "BadOptionUsage"
+        ]
+      },
+      {
+        "name": "_OptionParser._match_short_opt",
+        "behavior": "Iterates over the characters of a cluster like -abc. Each character is normalized and looked up in _short_opt. A value-taking option consumes the remainder of the cluster as its value (pushed onto rargs) and stops.",
+        "edge_cases": [
+          "With ignore_unknown_options, unknown characters are collected and re-appended to largs as prefix+chars",
+          "Otherwise unknown raises NoSuchOption"
+        ],
+        "raises": [
+          "NoSuchOption",
+          "BadOptionUsage"
+        ]
+      },
+      {
+        "name": "_OptionParser._get_value_from_state",
+        "behavior": "Gets the option value from rargs. If fewer than nargs remain: returns FLAG_NEEDS_VALUE when option.obj._flag_needs_value, else raises. For nargs==1 the next token is used, except that with _flag_needs_value a following token that looks like an option gives FLAG_NEEDS_VALUE. For nargs>1 returns a tuple and consumes nargs items.",
+        "edge_cases": [
+          "Value tokens that start with a prefix are consumed as values for ordinary options"
+        ],
+        "raises": [
+          "BadOptionUsage"
+        ]
+      },
+      {
+        "name": "_Option",
+        "behavior": "Holds the parsed option spec: _short_opts (prefix len 1 and name len 1), _long_opts (everything else), prefixes, dest, action (default 'store'), nargs, const, obj. takes_value is true for store and append. process(value, state) applies the action to state.opts and appends obj to state.order.",
+        "edge_cases": [
+          "Unknown action raises ValueError('unknown action ...') at process time, not at construction",
+          "count starts from 0 and increments",
+          "append and append_const use setdefault lists"
+        ],
+        "raises": [
+          "ValueError"
+        ]
+      },
+      {
+        "name": "_Option.process",
+        "behavior": "store sets opts[dest]=value; store_const sets const; append and append_const append to a list; count increments. Always appends obj to state.order, so repeated options are recorded repeatedly.",
+        "edge_cases": [
+          "Unknown action raises ValueError"
+        ],
+        "raises": [
+          "ValueError"
+        ]
+      },
+      {
+        "name": "_Argument.process",
+        "behavior": "For nargs>1: if all items are UNSET the value becomes UNSET, if only some are it raises BadArgumentUsage. An empty tuple becomes UNSET. Stores into state.opts[dest] and appends obj to state.order.",
+        "edge_cases": [
+          "nargs=-1 with no values gives UNSET (not an empty tuple)"
+        ],
+        "raises": [
+          "BadArgumentUsage"
+        ]
+      },
+      {
+        "name": "_ParsingState",
+        "behavior": "Holds mutable parse state: opts dict, largs (leftovers/positionals), rargs (remaining), order list.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "_unpack_args",
+        "behavior": "Distributes args across the nargs_spec. nargs==1 gives a str, nargs>1 gives a tuple, nargs<0 is a wildcard that takes the remainder. Specs after the wildcard are filled from the end, then reversed. Returns (tuple of values, leftover list). Missing values are UNSET.",
+        "edge_cases": [
+          "Only one wildcard is allowed",
+          "Without a wildcard, excess args are returned as leftovers"
+        ],
+        "raises": [
+          "TypeError"
+        ]
+      },
+      {
+        "name": "_split_opt",
+        "behavior": "Returns (prefix, rest). If the first char is alphanumeric the prefix is ''. If the first two chars are equal ('--') the prefix is two chars. Otherwise the prefix is one char.",
+        "edge_cases": [
+          "An empty string gives ('', '')"
+        ],
+        "raises": []
+      },
+      {
+        "name": "_normalize_opt",
+        "behavior": "Returns opt unchanged if ctx is None or has no token_normalize_func. Otherwise splits off the prefix and applies the function to the name only.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "__getattr__",
+        "behavior": "Module-level deprecation shim. Names OptionParser, Argument, Option, split_opt, normalize_opt, ParsingState return globals()['_<name>'] with a DeprecationWarning (stacklevel 2). split_arg_string is re-imported from shell_completion with a warning. Anything else raises AttributeError.",
+        "edge_cases": [
+          "Other unknown names raise AttributeError(name)"
+        ],
+        "raises": [
+          "AttributeError"
+        ]
+      }
+    ],
+    "error_conventions": "Parse problems raise click.exceptions UsageError subclasses. NoSuchOption is for an unknown option (with a possibilities list for suggestions). BadOptionUsage(option_name, msg) covers a missing value, a value given to a flag, or a wrong nargs count. BadArgumentUsage covers a partially filled multi-value positional. Programmer errors use ValueError (invalid option prefix or unknown action) and TypeError (two nargs<0). Messages are gettext-wrapped (`_` and `ngettext`) and use repr-quoted names, e.g. \"Option {name!r} requires an argument.\" / \"Option {name!r} requires {nargs} arguments.\" / \"Option {name!r} does not take a value.\" / \"Argument {name!r} takes {nargs} values.\". The ValueError and TypeError messages: \"Invalid start character for option ({option})\" is translated, \"Cannot have two nargs < 0\" is not.",
+    "examples": [
+      {
+        "description": "Parser defaults to only - and -- as prefixes",
+        "code": "parser = _OptionParser()\nassert parser._opt_prefixes == {\"-\", \"--\"}",
+        "source_path": "tests/test_parser.py",
+        "line_start": 22,
+        "line_end": 24
+      },
+      {
+        "description": "Custom option prefixes are collected when options are added",
+        "code": "ctx = click.Context(click.Command(\"test\"))\nparser = _OptionParser(ctx)\nclick.Option(\"+p\", is_flag=True).add_to_parser(parser, ctx)\nclick.Option(\"!e\", is_flag=True).add_to_parser(parser, ctx)\nassert parser._opt_prefixes == {\"-\", \"--\", \"+\", \"!\"}",
+        "source_path": "tests/test_parser.py",
+        "line_start": 27,
+        "line_end": 32
+      },
+      {
+        "description": "How core builds the parser (Command.make_parser)",
+        "code": "parser = _OptionParser(ctx)\n# ... params add themselves via param.add_to_parser(parser, ctx)",
+        "source_path": "src/click/core.py",
+        "line_start": 1227,
+        "line_end": 1229
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_parser.py",
+        "how_it_asserts": "Plain pytest asserts. It checks private state (_opt_prefixes) directly on _OptionParser, both default and after Option.add_to_parser with custom prefixes '+' and '!'. It also has a parametrized test of shell_completion.split_arg_string. There are no direct tests of the parse_args error paths. Those are covered indirectly by the CliRunner-based tests for options and arguments elsewhere (not read)."
+      }
+    ],
+    "extension_points": [
+      {
+        "name": "Command.make_parser",
+        "path": "src/click/core.py",
+        "line": 1227,
+        "what_could_attach": "Override in a Command subclass to return a customized _OptionParser (a subclass with different matching rules) or to pre-register extra options."
+      },
+      {
+        "name": "Parameter.add_to_parser (Option/Argument)",
+        "path": "src/click/core.py",
+        "line": 3325,
+        "what_could_attach": "Custom Option/Argument subclasses decide how they register with the parser (action, nargs, const, dest)."
+      },
+      {
+        "name": "Context.token_normalize_func via _normalize_opt",
+        "path": "src/click/parser.py",
+        "line": 120,
+        "what_could_attach": "Supplying token_normalize_func on the Context changes how option names are matched (case-insensitive or alias handling)."
+      },
+      {
+        "name": "_Option.process action dispatch",
+        "path": "src/click/parser.py",
+        "line": 169,
+        "what_could_attach": "A new action (for example 'extend') could be added to the if/elif chain and to takes_value."
+      },
+      {
+        "name": "_OptionParser.allow_interspersed_args / ignore_unknown_options",
+        "path": "src/click/parser.py",
+        "line": 249,
+        "what_could_attach": "Context flags that tune parsing. Plugins can set them via Context settings."
+      }
+    ],
+    "gaps": [
+      {
+        "description": "No abbreviation or prefix matching of long options (such as --verb for --verbose)",
+        "why_plausible": "_match_long_opt does an exact dict lookup. NoSuchOption already gets the possibilities list, so a unique-prefix lookup would fit in the same place.",
+        "nearest_existing": "_OptionParser._match_long_opt"
+      },
+      {
+        "description": "No 'extend' action and no per-option duplicate-use detection or error",
+        "why_plausible": "The actions are a fixed set. Repeated store options silently overwrite, though state.order already records repeats.",
+        "nearest_existing": "_Option.process"
+      },
+      {
+        "description": "No explicit '=' value support for short options (-o=val keeps '=' as part of the value)",
+        "why_plausible": "Short-cluster handling just pushes the remainder of the cluster as the value.",
+        "nearest_existing": "_OptionParser._match_short_opt"
+      },
+      {
+        "description": "Duplicate or conflicting option registration is not detected",
+        "why_plausible": "add_option silently overwrites existing entries in the dict.",
+        "nearest_existing": "_OptionParser.add_option"
+      }
+    ],
+    "limitations": [
+      "Module and class are internal and deprecated. _OptionParser is marked deprecated since 8.2 and slated for removal in 9.0, and the module docstring plans to remove more.",
+      "Only the actions store, store_const, append, append_const and count exist, and they are plain strings validated lazily.",
+      "Only one nargs=-1 positional is supported.",
+      "The parser does no type conversion, defaults or validation. Those live in core.",
+      "Argument parsing is two-phase: all options are processed before positional assignment, so positional nargs cannot influence option parsing.",
+      "parse_args mutates the input list.",
+      "Tests for this module are minimal; direct unit coverage of parsing behavior is thin."
+    ]
+  }
+}

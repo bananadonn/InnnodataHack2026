@@ -1,0 +1,289 @@
+{
+  "path": "src/click/termui.py",
+  "claim": {
+    "summary": "src/click/termui.py holds Click's interactive and terminal helpers. It has prompt/confirm built on a swappable `visible_prompt_func` (input) and `hidden_prompt_func` (getpass). It also has ANSI style/unstyle/secho, and thin lazy wrappers over `_termui_impl` (progressbar, edit, launch, getchar, raw_terminal, pager). It also has clear and pause. Prompts go through `_readline_prompt`, which passes the full prompt text to the input function so readline works. It strips ANSI itself when the stream doesn't support color.",
+    "interfaces": [
+      {
+        "name": "prompt",
+        "behavior": "Builds the prompt via _build_prompt (text, then ' (choices)' if type is a Choice and show_choices, then ' [default]' if show_default, then prompt_suffix default ': '). If value_proc is None it uses convert_type(type, default). Loops reading input via hidden_prompt_func if hide_input, else visible_prompt_func. Empty input returns the default if default is not None, otherwise it re-prompts forever. The default is cast and passed through value_proc like typed input. A UsageError from value_proc prints 'Error: <message>' (via echo, to stderr if err) and re-prompts. With hide_input the message is masked via _mask_hidden_input. confirmation_prompt (True gives 'Repeat for confirmation', or a custom string) asks a second time. A mismatch prints 'Error: The two entered values do not match.' and restarts. If both are empty, confirmation is accepted.",
+        "edge_cases": [
+          "show_default as str shows ' [(str)]' instead of the value",
+          "default of None with empty input re-prompts",
+          "File defaults are shown by name via _format_default",
+          "KeyboardInterrupt/EOFError become Abort; with hide_input a newline is echoed first",
+          "empty confirmation re-asks unless the first value was also empty"
+        ],
+        "raises": [
+          "Abort"
+        ]
+      },
+      {
+        "name": "confirm",
+        "behavior": "Yes/no prompt. The suffix is '[Y/n]', '[y/N]' or '[y/n]' depending on default (True, False, None), shown only if show_default. Input is lowercased and stripped. y/yes gives True, n/no gives False, and empty returns default when it is not None. Anything else echoes 'Error: invalid input' and re-asks. If abort=True a negative answer raises Abort.",
+        "edge_cases": [
+          "default=None repeats until a valid answer",
+          "EOF/KeyboardInterrupt raise Abort"
+        ],
+        "raises": [
+          "Abort"
+        ]
+      },
+      {
+        "name": "hidden_prompt_func",
+        "behavior": "Imports getpass lazily and returns getpass.getpass(prompt). It is a module-level hook that tests and doc tools monkeypatch.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "get_pager_file",
+        "behavior": "Resolves color with resolve_color_default, then delegates to _termui_impl.get_pager_file(color=...). It returns a context manager yielding a writable text file for the pager (new in 8.4.0).",
+        "edge_cases": [
+          "color=None means autodetect"
+        ],
+        "raises": []
+      },
+      {
+        "name": "echo_via_pager",
+        "behavior": "Accepts a str, an iterable, or a generator function (called with no args). A str becomes a one-item list. Each element is coerced to str. Writes via get_pager_file, flushing after each write, and appends a final '\\n' (chained as an iterable of characters).",
+        "edge_cases": [
+          "non-str elements are str()'d",
+          "only generator functions, not other callables, are called"
+        ],
+        "raises": []
+      },
+      {
+        "name": "progressbar",
+        "behavior": "Resolves color, then builds and returns _termui_impl.ProgressBar with all args forwarded. It is used as a context manager and iterable. Defaults: show_eta=True, fill '#', empty '-', template '%(label)s  [%(bar)s]  %(info)s', info_sep two spaces, width 36 (0 means full terminal width), update_min_steps=1. The overloads require length when there is no iterable. If the file is not a TTY only the label is printed, and hidden=True suppresses even that.",
+        "edge_cases": [
+          "item_show_func may receive None",
+          "show_percent defaults to True only if the length is known"
+        ],
+        "raises": []
+      },
+      {
+        "name": "clear",
+        "behavior": "If stdout is a TTY, echoes '\\033[2J\\033[1;1H' with nl=False. Otherwise it does nothing.",
+        "edge_cases": [
+          "no-op when not a TTY"
+        ],
+        "raises": []
+      },
+      {
+        "name": "style",
+        "behavior": "Converts non-str text with str(). Builds ANSI codes in this order: fg, bg (offset 10), bold, dim, underline, overline, italic, blink, reverse, strikethrough. Each flag None is skipped, True turns it on, False emits the off code (22, 24, 55, 23, 25, 27, 29). Appends the text, then '\\033[0m' if reset=True. Colors can be a name, an int 0-255 (8-bit), or an RGB tuple/list.",
+        "edge_cases": [
+          "bold=False and dim=False both emit 22",
+          "reset=False allows composing styles",
+          "bool colors are rejected"
+        ],
+        "raises": [
+          "ValueError"
+        ]
+      },
+      {
+        "name": "unstyle",
+        "behavior": "Returns strip_ansi(text) with ANSI codes removed.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "secho",
+        "behavior": "Calls style(message, **styles) unless message is None or bytes/bytearray, then echo(message, file, nl, err, color). Bytes skip styling. Style kwargs are forwarded to style, so a bad kwarg raises TypeError and a bad color raises ValueError.",
+        "edge_cases": [
+          "None message goes to echo unstyled (prints a blank line)",
+          "unknown style kwarg raises TypeError from style()"
+        ],
+        "raises": [
+          "ValueError",
+          "TypeError"
+        ]
+      },
+      {
+        "name": "edit",
+        "behavior": "Builds _termui_impl.Editor(editor, env, require_save, extension). With filename=None it returns ed.edit(text). Otherwise a str or PathLike is wrapped in a tuple and ed.edit_files is called, returning None. The overloads give require_save default False for bytes and True for str. Per the docstring, a UsageError is raised if the editor cannot be opened (raised inside Editor, not read here).",
+        "edge_cases": [
+          "returns None if unchanged and require_save",
+          "filename makes text, require_save and extension irrelevant"
+        ],
+        "raises": []
+      },
+      {
+        "name": "launch",
+        "behavior": "Delegates to _termui_impl.open_url(url, wait, locate) and returns the exit code (0 usually means success). locate=True opens a file manager at the file.",
+        "edge_cases": [
+          "xdg-open does not block even with wait=True"
+        ],
+        "raises": []
+      },
+      {
+        "name": "getchar",
+        "behavior": "Lazily imports and caches _termui_impl.getchar in the module global _getchar, then calls it with echo (default False). Tests set click.termui._getchar to override it.",
+        "edge_cases": [
+          "may return more than one character",
+          "reads from the terminal even if stdin is piped"
+        ],
+        "raises": []
+      },
+      {
+        "name": "raw_terminal",
+        "behavior": "Returns the context manager from _termui_impl.raw_terminal() (yields an int). It has no docstring.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "pause",
+        "behavior": "Returns immediately unless both stdin and stdout are TTYs. Default info is 'Press any key to continue...'. Echoes the info with nl=False, calls getchar(), and swallows KeyboardInterrupt/EOFError. In a finally block it echoes a newline if info is truthy. info='' prints nothing.",
+        "edge_cases": [
+          "no-op when not interactive",
+          "empty info means no message and no newline"
+        ],
+        "raises": []
+      },
+      {
+        "name": "_readline_prompt",
+        "behavior": "Private helper that picks stderr or stdout. It strips ANSI from the text if _compat.should_strip_ansi(stream, resolve_color_default()) is true; this is looked up on the module so CliRunner's patch applies. It calls func(text), wrapped in redirect_stdout(sys.stderr) when err=True.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "_build_prompt",
+        "behavior": "Private helper that assembles the prompt string from text, choices, a default preview and the suffix. It is also used by confirm with a 'y/n' style pseudo-default.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "_mask_hidden_input",
+        "behavior": "Replaces repr(value) and the raw value (word-boundary regex, skipped when value is empty) in an error message with \"'***'\" so hidden input doesn't leak.",
+        "edge_cases": [
+          "empty value skips the raw pass"
+        ],
+        "raises": []
+      },
+      {
+        "name": "_interpret_color",
+        "behavior": "Private helper that maps a color name, int 0-255 or 3-int tuple/list to an SGR parameter string. The offset (10 for bg) is added to named colors and applied to 38 for 8-bit and RGB colors.",
+        "edge_cases": [
+          "bools rejected",
+          "out-of-range ints and bad tuples raise ValueError"
+        ],
+        "raises": [
+          "ValueError"
+        ]
+      }
+    ],
+    "error_conventions": "Abort is raised for user interrupt/EOF, or for a declined confirm(abort=True). UsageError from type conversion is caught inside prompt and shown as the message 'Error: <message>' (gettext-wrapped), followed by a re-prompt. confirm prints 'Error: invalid input'. The confirmation mismatch message is 'Error: The two entered values do not match.' ValueError('Unknown color {colour!r}') is raised for bad colors. UsageError for editor failures comes from _termui_impl, not this file. Errors are written with echo(err=err).",
+    "examples": [
+      {
+        "description": "Default round-trips through type",
+        "code": "monkeypatch.setattr(sys, \"stdin\", StringIO(\"\\n\"))\nvalue = click.prompt(\"value\", default=\"100\", type=int)",
+        "source_path": "tests/test_utils/test_prompt.py",
+        "line_start": 11,
+        "line_end": 12
+      },
+      {
+        "description": "Docstring example of styling",
+        "code": "click.echo(click.style('Hello World!', fg='green'))\nclick.echo(click.style('More colors', fg=(255, 12, 128), bg=117))",
+        "source_path": "src/click/termui.py",
+        "line_start": 662,
+        "line_end": 665
+      },
+      {
+        "description": "Manual progress bar update",
+        "code": "with progressbar(length=chunks.total_bytes) as bar:\n    for chunk in chunks:\n        process_chunk(chunk)\n        bar.update(chunks.bytes)",
+        "source_path": "src/click/termui.py",
+        "line_start": 495,
+        "line_end": 498
+      },
+      {
+        "description": "Test that the full prompt text is passed to the input function",
+        "code": "monkeypatch.setattr(\"click.termui.visible_prompt_func\", capture)\ncall()\nassert received == [expected_prompt]",
+        "source_path": "tests/test_utils/test_prompt.py",
+        "line_start": 81,
+        "line_end": 83
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_utils/test_prompt.py",
+        "how_it_asserts": "Six tests. Stdin is replaced via monkeypatch with StringIO. Others patch click.termui.visible_prompt_func/hidden_prompt_func to capture the prompt text, and compare it to the expected string with a plain assert. They check that defaults go through type conversion and validation, that Abort is raised on KeyboardInterrupt (output equals '\\ninterrupted\\n' via capsys), and that EOF gives exit_code 1 through runner.invoke. Some are skipped on Windows."
+      },
+      {
+        "path": "tests/test_termui.py",
+        "how_it_asserts": "Uses the runner fixture with input= and checks result.output/exit_code. Progressbar tests monkeypatch click._termui_impl.isatty and the time function, and compare the rendered output. getchar tests patch msvcrt and reset click.termui._getchar to None. Pager tests use capfd with a real pager command. Option-prompt tests check the output text, for example the choices list or 'file [path]: '."
+      }
+    ],
+    "extension_points": [
+      {
+        "name": "visible_prompt_func",
+        "path": "src/click/termui.py",
+        "line": 34,
+        "what_could_attach": "Replace input() for custom, testing or doc-tool prompt readers. Its signature is Callable[[str], str]."
+      },
+      {
+        "name": "hidden_prompt_func",
+        "path": "src/click/termui.py",
+        "line": 79,
+        "what_could_attach": "Monkeypatch this to swap the password reader."
+      },
+      {
+        "name": "prompt value_proc / type parameters",
+        "path": "src/click/termui.py",
+        "line": 168,
+        "what_could_attach": "A custom ParamType or value_proc callable that raises UsageError for validation with retry."
+      },
+      {
+        "name": "_ansi_colors",
+        "path": "src/click/termui.py",
+        "line": 36,
+        "what_could_attach": "Dict of named colors; new named colors or aliases could be added here and would be accepted by style."
+      },
+      {
+        "name": "_getchar",
+        "path": "src/click/termui.py",
+        "line": 954,
+        "what_could_attach": "Override hook for getchar (used by tests)."
+      },
+      {
+        "name": "progressbar item_show_func/bar_template",
+        "path": "src/click/termui.py",
+        "line": 443,
+        "what_could_attach": "Custom per-item text and bar layout."
+      },
+      {
+        "name": "get_pager_file",
+        "path": "src/click/termui.py",
+        "line": 348,
+        "what_could_attach": "Streaming pager writes; custom pager integrations."
+      }
+    ],
+    "gaps": [
+      {
+        "description": "No re-prompt limit or max attempts for prompt/confirm; invalid input loops forever until Abort or EOF.",
+        "why_plausible": "Scripts and tests would benefit from a bounded retry count.",
+        "nearest_existing": "prompt"
+      },
+      {
+        "description": "confirm has no custom yes/no word sets or localization of accepted answers; it accepts only y/yes/n/no.",
+        "why_plausible": "The error and prompt strings are already gettext-wrapped.",
+        "nearest_existing": "confirm"
+      },
+      {
+        "description": "style has no named-style or theme registry, and no named 'bright_*' aliases for bg handling beyond the table; there is also no combined 'styles' dict helper.",
+        "why_plausible": "The secho **styles pass-through suggests a reusable style bundle.",
+        "nearest_existing": "style"
+      },
+      {
+        "description": "No single-choice menu or selection helper (numbered choices) beyond Choice shown in the prompt text.",
+        "why_plausible": "prompt already renders Choice and validates it.",
+        "nearest_existing": "prompt"
+      }
+    ],
+    "limitations": [
+      "Behavior of ProgressBar, Editor, open_url, getchar and the pager lives in _termui_impl.py, which I did not read.",
+      "prompt return typing is not enforced at runtime; the default goes through value_proc.",
+      "pause and clear are no-ops when not on a TTY.",
+      "secho can't style bytes.",
+      "The test lists were only sampled and not read in full."
+    ]
+  }
+}
