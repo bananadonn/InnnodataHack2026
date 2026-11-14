@@ -41,7 +41,11 @@ N_CANDIDATES = 15
 N_FEATURES = 5
 AUDIT_BATCH_SIZE = 5           # candidates per audit session
 MIN_DIFFICULTY = 3             # candidates scoring below this are not selected
-MIN_VALUE = 3                  # candidates scoring below this, or not fitting the library, are not selected
+MIN_VALUE = 2                  # candidates scoring below this are not selected
+# Team decision (2026-11-14): a good feature that nobody has requested yet is acceptable, so "does not fit the
+# library" from the value audit is reported but not a hard reject. Drop-ins and existing features are still
+# rejected by the novelty audit.
+REQUIRE_FITS_LIBRARY = False
 MIN_CASES = 15                 # case-table size per feature
 NOVELTY_MAX_BUDGET_USD = 2.00      # per batch
 DIFFICULTY_MAX_BUDGET_USD = 4.00   # per batch

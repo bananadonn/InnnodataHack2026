@@ -303,44 +303,58 @@ def make_difficulty_validator(slugs: list[str]):
 
 def select(candidates: list[Candidate], novelty: dict[str, NoveltyVerdict], difficulty: dict[str, DifficultyVerdict],
            value: dict[str, ValueVerdict], n: int = config.N_FEATURES) -> Selection:
+    """Novel only; value >= MIN_VALUE (and fits the library if REQUIRE_FITS_LIBRARY); difficulty >= MIN_DIFFICULTY.
+    If fewer than n qualify, the remaining slots are filled from candidates exactly one point under the difficulty
+    floor, highest value first, and labelled as fillers."""
     reasons: dict[str, str] = {}
     eligible: list[Candidate] = []
+    filler: list[Candidate] = []
     for c in candidates:
         nv, dv, vv = novelty.get(c.slug), difficulty.get(c.slug), value.get(c.slug)
         if nv is None or dv is None or vv is None:
             reasons[c.slug] = "rejected: audit missing (a validation session failed)"
         elif nv.verdict != "novel":
             reasons[c.slug] = f"rejected: novelty verdict {nv.verdict} ({nv.closest_existing})"
-        elif vv.score < config.MIN_VALUE or not vv.fits_library:
-            why = "does not fit the library" if not vv.fits_library else f"value {vv.score}/5 is below {config.MIN_VALUE}"
-            reasons[c.slug] = f"rejected: {why}"
+        elif vv.score < config.MIN_VALUE:
+            reasons[c.slug] = f"rejected: value {vv.score}/5 is below {config.MIN_VALUE}"
+        elif config.REQUIRE_FITS_LIBRARY and not vv.fits_library:
+            reasons[c.slug] = "rejected: does not fit the library"
         elif dv.score < config.MIN_DIFFICULTY:
             reasons[c.slug] = f"rejected: difficulty {dv.score}/5 is below {config.MIN_DIFFICULTY}"
+            if dv.score == config.MIN_DIFFICULTY - 1:
+                filler.append(c)
         else:
             eligible.append(c)
     order = {c.slug: i for i, c in enumerate(candidates)}
     eligible.sort(key=lambda c: (-difficulty[c.slug].score, -value[c.slug].score,
                                  -int(difficulty[c.slug].survives_explicit_spec),
                                  -len(difficulty[c.slug].confirmed_traps), order[c.slug]))
+    filler.sort(key=lambda c: (-value[c.slug].score, -len(difficulty[c.slug].confirmed_traps), order[c.slug]))
 
     def label(c: Candidate) -> str:
-        return f"novel, difficulty {difficulty[c.slug].score}/5, value {value[c.slug].score}/5"
+        fit = "" if value[c.slug].fits_library else "; value audit doubts it fits the library"
+        return f"novel, difficulty {difficulty[c.slug].score}/5, value {value[c.slug].score}/5{fit}"
 
     chosen: list[Candidate] = []
-    # Hardest first. Pass 1: distinct category and at most 2 features per primary source file.
-    # Pass 2: distinct category only. Pass 3: anything left.
-    for rule in ("category, at most 2 per file", "category", "none"):
-        for c in eligible:
-            if len(chosen) >= n or c in chosen:
-                continue
-            same_cat = any(x.category.strip().lower() == c.category.strip().lower() for x in chosen)
-            same_file = sum(x.source_files_to_modify[0] == c.source_files_to_modify[0] for x in chosen)
-            if (rule == "category, at most 2 per file" and (same_cat or same_file >= 2)) or (rule == "category" and same_cat):
-                continue
-            chosen.append(c)
-            relaxed = "" if rule == "category, at most 2 per file" else f"; variation rule relaxed to: {rule}"
-            reasons[c.slug] = f"selected: {label(c)}{relaxed}"
-    reserves = [c for c in eligible if c not in chosen]
+
+    def fill(pool: list[Candidate], tag: str) -> None:
+        # Pass 1: distinct category and at most 2 features per primary source file.
+        # Pass 2: distinct category only. Pass 3: anything left.
+        for rule in ("category, at most 2 per file", "category", "none"):
+            for c in pool:
+                if len(chosen) >= n or c in chosen:
+                    continue
+                same_cat = any(x.category.strip().lower() == c.category.strip().lower() for x in chosen)
+                same_file = sum(x.source_files_to_modify[0] == c.source_files_to_modify[0] for x in chosen)
+                if (rule == "category, at most 2 per file" and (same_cat or same_file >= 2)) or (rule == "category" and same_cat):
+                    continue
+                chosen.append(c)
+                relaxed = "" if rule == "category, at most 2 per file" else f"; variation rule relaxed to: {rule}"
+                reasons[c.slug] = f"{tag}: {label(c)}{relaxed}"
+
+    fill(eligible, "selected")
+    fill(filler, "selected (filler, below the difficulty floor)")
+    reserves = [c for c in eligible + filler if c not in chosen]
     for c in reserves:
         reasons[c.slug] = f"reserve: {label(c)}, not needed for the top {n}"
     return Selection(selected=[c.slug for c in chosen], reserves=[c.slug for c in reserves], reasons=reasons)

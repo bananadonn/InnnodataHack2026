@@ -234,7 +234,7 @@ Runs three independent audits over every candidate, in batches of 5, in parallel
 
 For the two web audits, every search and evidence URL the auditor reports is cross-checked against its real web calls in `events.jsonl`; anything it did not actually fetch is rejected.
 
-Then the pipeline (no model) selects 5: novel only, value at least 3 and fits the library, difficulty at least 3, hardest first (value breaks ties), distinct categories, at most 2 per primary source file. Rejections and reasons are written to `candidates.md`. The spec author is told to drop the rules the value audit marked as contrived.
+Then the pipeline (no model) selects 5: novel only, value at least `MIN_VALUE` (2), difficulty at least `MIN_DIFFICULTY` (3), hardest first (value breaks ties), distinct categories, at most 2 per primary source file where possible. If fewer than 5 qualify, the rest are filled from candidates one point under the difficulty floor, highest value first, labelled as fillers. The value audit's "does not fit the library" is reported but not a hard reject (`REQUIRE_FITS_LIBRARY = False`): the team decided a good feature nobody has requested yet is acceptable. Drop-ins and existing features are still rejected by the novelty audit. Rejections and reasons are written to `candidates.md`. The spec author is told to drop the rules the value audit marked as contrived.
 
 Re-running `validate` keeps verdicts already in `audit.json` and only runs the audits that are missing.
 
