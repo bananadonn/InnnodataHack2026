@@ -119,7 +119,7 @@ class EventLog:
             for block in msg.content:
                 if isinstance(block, ToolResultBlock):
                     self.write("tool_result", stage=stage, id=block.tool_use_id, is_error=bool(block.is_error),
-                               content=clip(block.content))
+                               content=clip(block.content, 6000))
         elif isinstance(msg, ResultMessage):
             self.write("result", stage=stage, subtype=msg.subtype, is_error=msg.is_error, num_turns=msg.num_turns,
                        duration_ms=msg.duration_ms, total_cost_usd=msg.total_cost_usd, usage=msg.usage,
@@ -184,7 +184,7 @@ async def run_stage(
     options = ClaudeAgentOptions(
         model=model,
         system_prompt=system_prompt,
-        tools=BUILTIN_TOOLS if tools is None else tools,
+        tools=BUILTIN_TOOLS if tools is None else tools,  # the only built-in tools that exist for the agent
         mcp_servers=mcp_servers or {},
         can_use_tool=make_permission_policy(workspace),
         permission_mode="default",

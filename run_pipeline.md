@@ -2,7 +2,7 @@
 
 Run commands from the repository root. The current order is:
 
-**Explore → Propose features → Author tests/find regressions → Haiku implementation → OpenRouter reference implementation.**
+**Explore → Mine user demand → Propose candidates → Audit/select → Refine specs → Author tests/find regressions → Haiku implementation → OpenRouter reference implementation.**
 
 Run each stage separately and check its output before continuing. Model calls use the
 team's API allocations. This workflow currently produces drafts and candidate patches;
@@ -90,21 +90,57 @@ uv run --no-active python -m pipeline.cli ask "$PIPELINE_RUN_ID" "Where are opti
 
 Resumes that run's exploration session and appends the answer to `qa.md`.
 
-## 3. Propose five features — Opus
+## 3. Design, audit and refine the features
+
+### 3a. Mine user demand — Sonnet
 
 ```bash
-uv run --no-active python -m pipeline.cli propose "$PIPELINE_RUN_ID" --n 5
+uv run --no-active python -m pipeline.cli demand "$PIPELINE_RUN_ID"
 ```
 
-Uses the exploration report and repository source to propose five distinct features.
-Uses `PROPOSE_MODEL = "opus"` through the Claude Agent SDK.
+Finds real user requests online and writes `demand.json` and `demand.md`.
+Uses `DEMAND_MODEL`. This is a paid research stage. The proposal stage also mines
+requests automatically if `demand.json` is absent.
 
-Outputs: `runs/$PIPELINE_RUN_ID/features.md` and `features.json`.
-Rerunning this command replaces the feature plan in that run. Once tests and coding
-attempts exist, preserve their original plan and keep downstream artifacts aligned
-with the exact feature-plan snapshot they consumed.
+### 3b. Propose candidates — Opus
 
-To read the proposed features on macOS:
+```bash
+uv run --no-active python -m pipeline.cli propose "$PIPELINE_RUN_ID" --n 15
+```
+
+Uses the repository report and user demand to propose a pool of candidates. Uses
+`PROPOSE_MODEL` (currently `claude-opus-5-5`) and writes `candidates.json`.
+This stage no longer writes the final `features.json` consumed by tests and coding.
+Subsequent proposal rounds preserve earlier round artifacts and use audit feedback.
+
+### 3c. Audit and select candidates — Sonnet and Opus
+
+```bash
+uv run --no-active python -m pipeline.cli validate "$PIPELINE_RUN_ID"
+```
+
+Audits novelty and user value with Sonnet, difficulty with Opus, and selects features
+using application rules. Writes `audit.json`, `selection.json`, and `candidates.md`.
+This command validates feature ideas; it does not execute regression tests or verify
+candidate implementations. Inspect selection and rejection reasons before continuing.
+
+### 3d. Refine selected specifications and quiz them — Opus, Sonnet and Haiku
+
+```bash
+uv run --no-active python -m pipeline.cli spec "$PIPELINE_RUN_ID"
+```
+
+Writes full specifications and case tables with Opus, then uses independent blind
+readers for fairness and difficulty signals. May replace failed or too-easy features
+with reserves. Expected case values and model quiz answers are not execution evidence.
+
+Outputs: `specs/<slug>/instruction.md`, `cases.json`, `spec.json`, `quiz.json`, plus
+`features.md` and `features.json` in the run directory. These are the inputs for the
+test agent and both coding agents. Inspect retained, dropped and blocked features.
+Rerunning specification authoring replaces the feature handoff; keep tests and coding
+attempts aligned with the exact specification snapshot they consumed.
+
+To read the finalized features on macOS:
 
 ```bash
 open "runs/$PIPELINE_RUN_ID/features.md"
@@ -116,7 +152,7 @@ open "runs/$PIPELINE_RUN_ID/features.md"
 uv run --no-active python -m pipeline.cli tests "$PIPELINE_RUN_ID"
 ```
 
-Loads `test_agent_rules.md` and the generated feature plan. Uses `TEST_MODEL = "opus"`.
+Loads `test_agent_rules.md` and the generated feature plan. Uses `TEST_MODEL` (currently `claude-opus-5-5`).
 It performs two tasks:
 
 1. Creates new pytest test drafts for each feature, mapped to its acceptance criteria.
@@ -189,7 +225,7 @@ Outputs: `runs/$PIPELINE_RUN_ID/coding/<feature-slug>/reference/attempt_N/`.
 
 ## Alternative: run both coding agents with one command
 
-After proposing features and authoring tests, this replaces the separate commands in
+After refining the specifications and authoring tests, this replaces the separate commands in
 steps 5 and 6:
 
 ```bash

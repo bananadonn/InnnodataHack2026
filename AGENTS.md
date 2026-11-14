@@ -18,7 +18,7 @@ This file is persistent repository-level memory for future agent sessions.
 
 - The test agent must read `test_agent_rules.md` at runtime. Its current two tasks are (1) create new executable tests for every generated feature, mapping tests to that feature's acceptance criteria, and (2) find the existing regression-test folder(s) in the pinned repository and report whether it found them and their paths.
 - Current scope is authoring feature-test drafts and locating existing tests. Regression execution, final collected IDs, gold validation, mutation checks, and Harbor packaging are deferred and must never be reported as completed without execution evidence.
-- `pipeline.cli tests <run_id>` consumes the proposal stage's `features.json` and `features.md` (also reads `feature.md` if present). Test artifacts and discovery reports live under `runs/<run_id>/feature_tests/attempt_N/`; keep previous attempts and the repository's existing tests unchanged.
+- `pipeline.cli tests <run_id>` consumes the specification stage's `features.json` and `features.md` (also reads `feature.md` if present). Test artifacts and discovery reports live under `runs/<run_id>/feature_tests/attempt_N/`; keep previous attempts and the repository's existing tests unchanged.
 
 ## Implementation agent: compatibility is mandatory
 
@@ -34,3 +34,7 @@ This file is persistent repository-level memory for future agent sessions.
 - `pipeline.cli code <run_id>` prepares independent jobs without paid calls. `--execute` authors source candidates. Each feature and role starts from the same pinned commit in a separate clone and preserves previous attempts.
 - Neither agent receives the other's candidate or generated hidden tests. Reference quality must be established through execution and review, not inferred from model strength. The Haiku authoring stage is separate from the official Harbor benchmark.
 - Current coding stages scaffold candidate authoring only: regression, feature, full-suite and base-health execution remain pending. `accepted` stays false and outputs are not validated gold or final Harbor packages.
+
+## Combined feature-design flow
+
+- The current order is explore → demand → propose candidates → validate candidate ideas → spec → tests → coding agents. `propose` writes `candidates.json`; `spec` writes the final `features.json` handoff. Candidate audits and blind spec quizzes are not execution-based regression validation.

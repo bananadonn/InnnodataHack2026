@@ -18,8 +18,9 @@ The organizer brief, rubric and submission rules are in [`kit/`](kit/README.md).
 | click base template (`templates/click_base/`) | Dockerfile written, **not yet built or tested**; grading files are TODO placeholders |
 | Kit grading files (`grade.py`, `test.sh`, ...) | **missing**, see [`kit/MISSING.md`](kit/MISSING.md) |
 | Repo exploration (`pipeline/explore.py`) | implemented (Claude Agent SDK) |
+| Feature design: propose, validate, spec (`pipeline/propose.py`, `audit.py`, `spec.py`) | implemented |
+| Golden solution, hidden tests, packaging (`pipeline/generate.py`, `select_p2p.py`, `validate.py`) | stubs only |
 | Coding agents | Haiku candidate + independent OpenRouter reference; authoring scaffold, execution validation pending |
-| Rest of the pipeline (`pipeline/`) | stubs only |
 | Generated tasks, selfcheck, benchmark | none yet |
 
 Plan and ownership: [`docs/PLAN.md`](docs/PLAN.md).
@@ -57,9 +58,14 @@ inside the WSL filesystem, not under `/mnt/c`.
 uv run python -m pipeline.cli explore https://github.com/pallets/click --ref 8.5.1
 uv run python -m pipeline.cli ask <run_id> "Where are option defaults resolved?"
 
-# Design features, then draft their tests and locate existing regression tests
-uv run python -m pipeline.cli propose <run_id> --n 5
+# 0b. Design the features: user demand → 15 candidates → novelty/value/difficulty audit → select 5 → specs + blind quiz
+uv run python -m pipeline.cli demand <run_id>
+uv run python -m pipeline.cli propose <run_id>
+uv run python -m pipeline.cli validate <run_id>
+uv run python -m pipeline.cli spec <run_id>
+# Draft feature tests from the final specs and locate existing regression tests
 uv run python -m pipeline.cli tests <run_id>
+# details: pipeline_plan.md → "How to Run"
 
 # Prepare separate Haiku/reference coding workspaces, without paid calls
 uv run python -m pipeline.cli code <run_id> --agent both
@@ -124,10 +130,13 @@ Raw harbor run directories land in `./sc` and `./bench` at the repo root and are
   All constants live in `pipeline/config.py`.
 - **Task IDs:** `pallets__click-0001-<kebab-slug>`. The folder name, `name` and `instance_id`
   in `task.toml` must all be identical.
-- **Models:** exploration and generation run on Claude Haiku through the Claude Agent SDK
-  (`GENERATION_MODEL` in `pipeline/config.py`), billed to the Anthropic key. Every agent run has
-  a turn, cost and wall-clock cap. Benchmark **only** with `anthropic/claude-haiku-5-5` via
-  `terminus-2`. The benchmark shares the same $100 Anthropic allocation, so watch the spend.
+- **Models:** Sonnet explores, mines demand and audits novelty/value; Opus proposes,
+  audits difficulty, refines specs and authors test drafts through the Anthropic key.
+  Haiku also authors implementation candidates through the Claude Agent SDK. The independent
+  reference coding agent uses the OpenRouter key and its configurable model. Blind quizzes
+  use independent Sonnet/Haiku readers. Benchmark only with `anthropic/claude-haiku-5-5`
+  via `terminus-2`; authoring and model quizzes are separate from benchmark evidence.
+  Model choices and limits live in `pipeline/config.py`.
 - **Benchmark k:** the Markdown guide says k=3, part of the Word guide says k=5. Unresolved;
   ask the organizers. Scripts use k=3 for now.
 - **The exploration agent is read-only** and confined to its run workspace. Repo and web

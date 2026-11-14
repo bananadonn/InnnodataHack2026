@@ -163,7 +163,22 @@ Important: `allowed_tools` controls automatic approval; it does **not** restrict
 
 ## How to Run
 
-The plan above is implemented in `pipeline/explore.py` (exploration), `pipeline/verify.py` (checking the agent's claims against the source), `pipeline/propose.py` (feature design) and `pipeline/agent.py` (shared agent runner).
+The plan above is implemented in `pipeline/explore.py` (exploration), `pipeline/verify.py` (checking the agent's claims against the source), `pipeline/propose.py` (candidate features), `pipeline/audit.py` (novelty and difficulty validation, selection), `pipeline/spec.py` (full specs, case tables, blind quiz) and `pipeline/agent.py` (shared agent runner).
+
+Models per stage:
+
+| Stage | Model |
+| --- | --- |
+| Explore the repository | Sonnet 5.5 |
+| Mine real user demand (web) | Sonnet 5.5 |
+| Propose 15 candidate features from that demand | Opus 5.5 |
+| Validate: novelty audit (web) | Sonnet 5.5 |
+| Validate: value audit (web) | Sonnet 5.5 |
+| Validate: difficulty audit | Opus 5.5 |
+| Write full specs and case tables | Opus 5.5 |
+| Blind quiz: fairness reader | Sonnet 5.5 |
+| Blind quiz: difficulty signal | Haiku 5.5 (the benchmark model) |
+| Golden solution and hidden tests (next stage, not built yet) | Opus 5.5 |
 
 ### Setup (once)
 
@@ -185,15 +200,60 @@ uv run python -m pipeline.cli explore https://github.com/pallets/click --ref 8.5
 - Prints the `run_id`, the status and cost of each stage, and the output folder.
 - On click 8.5.1 this took about 3.5 minutes and about $1.20 (SDK estimate).
 
-### 2. Design features from the report
+### 2. Mine user demand
 
 ```bash
-uv run python -m pipeline.cli propose <run_id> --n 5
+uv run python -m pipeline.cli demand <run_id>
 ```
 
-Reads the run's `report.json`, designs `n` features, and checks each one against the repository (files and named interfaces exist, solution and test files do not overlap). Failed checks are sent back to the agent for correction. About $0.40 on click.
+Two Sonnet sessions with web access, in parallel: one reads the project's issues and discussions for feature requests that were never implemented; the other reads Stack Overflow, blog posts and add-on libraries for workarounds. Each request records the URL, the need, maintainers' position, demand signals, and whether it is still missing at the pinned commit (checked in the clone). Every URL is checked against the agent's real web calls. Output: `demand.json`, `demand.md`. `propose` runs this automatically if `demand.json` is missing.
 
-### 3. Ask a follow-up question
+### 2b. Propose candidate features
+
+```bash
+uv run python -m pipeline.cli propose <run_id>          # default --n 15
+```
+
+Proposes 15 candidate outlines designed from the mined demand. Every candidate cites the requests it answers (`demand_refs`) and states the user need. Rules must come from a user need or from consistency with existing click behavior; difficulty must come from the real requirement's interactions, not invented precedence or special cases. Each candidate still needs at least 3 traps and 2 integration points.
+
+The pipeline checks every candidate against the repository and the demand list: files and named interfaces exist, solution and test files do not overlap, the gold is at least 50 lines, every `demand_ref` is a mined request, no slug repeats an earlier round, and the set spans at least 6 categories and 5 source files. Failed checks go back to the agent.
+
+**Rounds.** Re-running `propose` starts a new round: the current candidates and audits move to `rounds/round<k>/`, candidates selected in that round are carried over unchanged, the rest are replaced, and Opus receives every earlier rejection and its reasons as feedback.
+
+### 3. Validate and select
+
+```bash
+uv run python -m pipeline.cli validate <run_id>
+```
+
+Runs three independent audits over every candidate, in batches of 5, in parallel:
+
+- **Novelty** (web): click's issues and pull requests, add-on and sibling libraries (cloup, click-option-group, typer, argparse and others), and a general search. Verdict: `novel`, `exists_upstream`, `in_progress` or `drop_in`.
+- **Value** (web): is this worth having? Looks for real users asking for it or working around its absence (issues, discussions, Stack Overflow, add-ons that exist because of the gap), says who benefits, checks it fits the library's design, and lists any rules that exist only to make the task harder. Scored 1-5.
+- **Difficulty** (repo, no web): re-reads the code, confirms or rejects each trap, and scores 1-5 for a small model working from a fully explicit spec. Low scorers get a suggested hardening rule.
+
+For the two web audits, every search and evidence URL the auditor reports is cross-checked against its real web calls in `events.jsonl`; anything it did not actually fetch is rejected.
+
+Then the pipeline (no model) selects 5: novel only, value at least `MIN_VALUE` (2), difficulty at least `MIN_DIFFICULTY` (3), hardest first (value breaks ties), distinct categories, at most 2 per primary source file where possible. If fewer than 5 qualify, the rest are filled from candidates one point under the difficulty floor, highest value first, labelled as fillers. The value audit's "does not fit the library" is reported but not a hard reject (`REQUIRE_FITS_LIBRARY = False`): the team decided a good feature nobody has requested yet is acceptable. Drop-ins and existing features are still rejected by the novelty audit. Rejections and reasons are written to `candidates.md`. The spec author is told to drop the rules the value audit marked as contrived.
+
+Re-running `validate` keeps verdicts already in `audit.json` and only runs the audits that are missing.
+
+### 4. Write full specs and quiz them
+
+```bash
+uv run python -m pipeline.cli spec <run_id>
+```
+
+For each selected feature, writes the full spec (rules numbered R/I/E/B/A) and a case table of at least 15 runnable cases with exact expected results. The pipeline checks the spec mechanically: snippets parse, every error case has an exact type and message, no vague phrases ("not specified", "etc."), every interaction rule, edge case and acceptance criterion is exercised by a case.
+
+Then a blind quiz: a model sees only the spec text and predicts each held-out case.
+
+- **Fairness reader (Sonnet):** any miss means the spec does not determine the answer. The misses go back to the spec author to fix (up to 2 rounds).
+- **Benchmark model (Haiku):** its misses are a cheap difficulty signal. A feature Haiku answers perfectly is replaced by the next reserve candidate.
+
+The quiz is a proxy. Predicting outcomes is easier than implementing, and expected values are not confirmed by running code until the golden solution exists.
+
+### 5. Ask a follow-up question
 
 ```bash
 uv run python -m pipeline.cli ask <run_id> "Where are option defaults resolved?"
@@ -206,7 +266,14 @@ Resumes the exploration session in the same workspace. The answer is printed and
 | File | Contents |
 | --- | --- |
 | `report.md` / `report.json` | The verified repository report: map, module cards, upstream findings, verification summary. |
-| `features.md` / `features.json` | The feature outlines (after `propose`). |
+| `demand.json` / `demand.md` | Mined user requests with URLs, maintainers' position and whether still missing (after `demand`). |
+| `candidates.json` | The 15 candidate outlines of the current round (after `propose`). |
+| `rounds/round<k>/` | Earlier rounds: their candidates, audits, selection and `candidates.md`. |
+| `audit.json`, `selection.json`, `candidates.md` | Audit verdicts with evidence, the selection, and why each candidate was kept or rejected (after `validate`). |
+| `specs/<slug>/instruction.md` | The spec exactly as the solver will see it (after `spec`). |
+| `specs/<slug>/cases.json` | The full case table, public and held out. Input for the hidden tests and the golden-solution check. |
+| `specs/<slug>/quiz.json`, `spec.json` | Quiz results per round and the structured spec. |
+| `features.md` / `features.json` | The final selected features with their specs and quiz scores (after `spec`). |
 | `run.json` | URL, ref, resolved commit SHA, per-stage status, token usage and cost, total cost. |
 | `events.jsonl` | Audit log of every assistant message, tool call and tool result. |
 | `map.json`, `claims/`, `upstream.json` | Raw agent output before verification. |
@@ -217,14 +284,15 @@ Resumes the exploration session in the same workspace. The answer is printed and
 
 Models and limits are in `pipeline/config.py`:
 
-- `EXPLORE_MODEL`, `PROPOSE_MODEL`: currently `claude-sonnet-5-5`.
-- `MAP_MAX_BUDGET_USD`, `CARD_MAX_BUDGET_USD`, `UPSTREAM_MAX_BUDGET_USD`, `PROPOSE_MAX_BUDGET_USD`: cost cap per agent session.
+- Models: `EXPLORE_MODEL`, `PROPOSE_MODEL`, `NOVELTY_MODEL`, `DIFFICULTY_MODEL`, `SPEC_MODEL`, `FAIRNESS_QUIZ_MODEL`, `QUIZ_MODEL`, `GENERATION_MODEL` (see the table above).
+- Counts: `N_CANDIDATES` (15), `N_FEATURES` (5), `AUDIT_BATCH_SIZE`, `MIN_DIFFICULTY` (3), `MIN_VALUE` (3), `MIN_CASES` (15).
+- Cost caps per agent session: `*_MAX_BUDGET_USD` for each stage.
 - `AGENT_MAX_TURNS`, `AGENT_WALL_TIMEOUT_SEC`, `AGENT_CONCURRENCY`, `DEEP_DIVE_MAX_MODULES`.
 
 ### Differences from the plan above
 
 - Exploration is several agent sessions (map, per-module deep dives, upstream check), not one.
-- Feature design (`propose`) was added as a following stage.
+- Feature design was added as four following stages: `demand`, `propose`, `validate`, `spec`.
 - Only public `https://github.com/<owner>/<repo>` URLs are accepted.
 - Claim verification parses Python only. For other languages the report is produced but interfaces are marked unverified.
 - Agents are read-only: file access is confined to the run workspace and shell access to read-only `git` inspection of the clone. No dependencies are installed and no repository code is executed.

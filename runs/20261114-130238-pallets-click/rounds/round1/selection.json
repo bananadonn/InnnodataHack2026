@@ -1,0 +1,23 @@
+{
+  "selected": [
+    "option-repeat-policy"
+  ],
+  "reserves": [],
+  "reasons": {
+    "multiple-occurrence-limits": "rejected: does not fit the library",
+    "option-default-from-param": "rejected: does not fit the library",
+    "deprecated-option-spellings": "rejected: value 2/5 is below 3",
+    "chain-usage-constraints": "rejected: does not fit the library",
+    "report-all-missing-params": "rejected: does not fit the library",
+    "choice-aliases": "rejected: value 2/5 is below 3",
+    "intrange-step-grid": "rejected: value 2/5 is below 3",
+    "custom-boolean-states": "rejected: value 2/5 is below 3",
+    "prompt-attempt-limit": "rejected: difficulty 2/5 is below 3",
+    "style-presets-registry": "rejected: does not fit the library",
+    "help-text-list-formatting": "rejected: does not fit the library",
+    "clirunner-prompt-transcript": "rejected: difficulty 2/5 is below 3",
+    "fuzzy-completion-fallback": "rejected: does not fit the library",
+    "accumulate-multi-sources": "rejected: does not fit the library",
+    "option-repeat-policy": "selected: novel, difficulty 3/5, value 3/5"
+  }
+}

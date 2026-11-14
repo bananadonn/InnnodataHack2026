@@ -1,0 +1,35 @@
+{
+  "selected": [
+    "command-aliases",
+    "async-command-callbacks",
+    "option-repeat-policy",
+    "option-value-separator",
+    "choice-enum-by-value"
+  ],
+  "reserves": [
+    "option-help-sections",
+    "path-must-not-exist",
+    "command-help-sections",
+    "mutually-exclusive-params",
+    "option-show-range-toggle",
+    "exception-error-style",
+    "help-styles"
+  ],
+  "reasons": {
+    "path-must-not-exist": "reserve: novel, difficulty 2/5, value 3/5, not needed for the top 5",
+    "option-show-range-toggle": "reserve: novel, difficulty 2/5, value 3/5, not needed for the top 5",
+    "group-default-command": "rejected: novelty verdict drop_in (click-default-group (click-contrib): DefaultGroup subclass of click.Group with default=NAME and default_if_no_args=True; runs the default subcommand when none is given, and other subcommands still work. The candidate puts the same behaviour into core as Group(default_command=...) and adds details such as completion and no_args_is_help handling, but the capability and shape are essentially the same.)",
+    "option-help-sections": "reserve: novel, difficulty 2/5, value 4/5, not needed for the top 5",
+    "command-help-sections": "reserve: novel, difficulty 2/5, value 3/5, not needed for the top 5",
+    "exception-error-style": "reserve: novel, difficulty 2/5, value 3/5, not needed for the top 5",
+    "color-option-and-env": "rejected: novelty verdict drop_in (click-extra colorize: a tri-state eager --color[=auto|always|never] option (plus --no-color) that sets ctx.color, and handling of NO_COLOR, FORCE_COLOR, CLICOLOR and others. The differences are that click-extra's FORCE_COLOR treats falsy values as off, it covers more variables, and it works at the option layer rather than inside click._compat.should_strip_ansi.)",
+    "mutually-exclusive-params": "reserve: novel, difficulty 2/5, value 3/5; value audit doubts it fits the library, not needed for the top 5",
+    "config-file-option": "rejected: novelty verdict drop_in (click-extra's @config_option, which loads a config file into default_map with subcommand sections and reports DEFAULT_MAP. It also covers TOML/YAML/JSON/INI, so it is a superset of the candidate's JSON-only version. click-config-file is a second similar package.)",
+    "choice-enum-by-value": "selected (filler, below the difficulty floor): novel, difficulty 2/5, value 3/5",
+    "help-styles": "reserve: novel, difficulty 2/5, value 2/5; value audit doubts it fits the library, not needed for the top 5",
+    "command-aliases": "selected: novel, difficulty 4/5, value 4/5",
+    "async-command-callbacks": "selected: novel, difficulty 4/5, value 3/5",
+    "option-repeat-policy": "selected: novel, difficulty 3/5, value 2/5; value audit doubts it fits the library",
+    "option-value-separator": "selected: novel, difficulty 4/5, value 2/5; value audit doubts it fits the library; variation rule relaxed to: category"
+  }
+}
