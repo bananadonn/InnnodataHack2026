@@ -177,13 +177,14 @@ async def run_stage(
     fix_rounds: int = 2,
     mcp_servers: dict[str, Any] | None = None,
     resume: str | None = None,
+    tools: list[str] | None = None,
 ) -> StageResult:
     """Run one agent session. With `schema`, the final answer is validated (schema, then `validator`);
     on failure the errors are sent back to the same session up to `fix_rounds` times."""
     options = ClaudeAgentOptions(
         model=model,
         system_prompt=system_prompt,
-        tools=BUILTIN_TOOLS,  # the only built-in tools that exist for the agent
+        tools=BUILTIN_TOOLS if tools is None else tools,
         mcp_servers=mcp_servers or {},
         can_use_tool=make_permission_policy(workspace),
         permission_mode="default",

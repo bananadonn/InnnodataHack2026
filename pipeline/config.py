@@ -23,11 +23,14 @@ INSTANCE_ID_PREFIX = "pallets__click"
 # --- Models --------------------------------------------------------------------------
 # Task creation runs through the Claude Agent SDK, which reads
 # ANTHROPIC_API_KEY from the environment: exploring the repo, designing features, and writing
-# the spec, gold patch and hidden tests. Haiku is only the benchmark solver.
+# the spec and hidden tests. Coding agents have separate models below.
 EXPLORE_MODEL = "claude-sonnet-5-5"
 PROPOSE_MODEL = "opus"
 GENERATION_MODEL = "claude-sonnet-5-5"
 TEST_MODEL = "opus"
+HAIKU_IMPLEMENTATION_MODEL = "haiku"
+# Explicit route; override in .env to select another advanced OpenRouter model.
+OPENROUTER_REFERENCE_MODEL = os.environ.get("OPENROUTER_REFERENCE_MODEL", "anthropic/claude-opus-4.6")
 
 # Caps for every agent session. Budgets are the SDK's client-side estimate and can overshoot slightly.
 AGENT_MAX_TURNS = 60
@@ -39,6 +42,11 @@ UPSTREAM_MAX_BUDGET_USD = 1.50 # upstream novelty check (web)
 PROPOSE_MAX_BUDGET_USD = 4.00  # feature design
 TEST_DISCOVERY_MAX_BUDGET_USD = 1.00
 TEST_MAX_BUDGET_USD = 2.00    # per feature, test authoring only
+CODING_MAX_BUDGET_USD = 3.00  # per Haiku feature attempt, SDK estimate
+REFERENCE_MAX_CALLS = 12
+REFERENCE_MAX_OUTPUT_TOKENS = 16000
+# Cumulative reported cost; a request can overshoot before its usage is returned.
+REFERENCE_MAX_BUDGET_USD = 5.00
 DEEP_DIVE_MAX_MODULES = 8
 CLONE_TIMEOUT_SEC = 300
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"

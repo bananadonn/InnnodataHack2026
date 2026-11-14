@@ -1,0 +1,147 @@
+diff --git a/src/click/core.py b/src/click/core.py
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -169,6 +169,56 @@
+         return not item.is_eager, idx
+ 
+     return sorted(declaration_order, key=sort_key)
++
++
++def _check_option_constraints(ctx: Context, params: cabc.Sequence[Parameter]) -> None:
++    """Enforce ``Option.conflicts_with`` and ``Option.requires`` for every explicit
++    option, in declaration order. Only explicit values (command line, environment,
++    or prompt) count, so defaults and ``default_map`` values neither trigger nor
++    satisfy a constraint. The first violation raises :meth:`Context.fail`.
++    """
++    by_name: dict[str, Parameter] = {param.name: param for param in params}
++
++    def is_explicit(name: str) -> bool:
++        source = ctx.get_parameter_source(name)
++        return source is not None and source < ParameterSource.DEFAULT_MAP
++
++    def display(param: Parameter) -> str:
++        return max(param.opts, key=len) if param.opts else param.name
++
++    for param in params:
++        if not isinstance(param, Option):
++            continue
++
++        if not (param.conflicts_with or param.requires):
++            continue
++
++        if not is_explicit(param.name):
++            continue
++
++        for other_name in param.conflicts_with:
++            other = by_name.get(other_name)
++
++            if other is None:
++                raise TypeError(
++                    f"Option '{param.name}' refers to unknown parameter '{other_name}'."
++                )
++
++            if is_explicit(other_name):
++                ctx.fail(
++                    f"Option '{display(param)}' cannot be used with '{display(other)}'."
++                )
++
++        for other_name in param.requires:
++            other = by_name.get(other_name)
++
++            if other is None:
++                raise TypeError(
++                    f"Option '{param.name}' refers to unknown parameter '{other_name}'."
++                )
++
++            if not is_explicit(other_name):
++                ctx.fail(f"Option '{display(param)}' requires '{display(other)}'.")
+ 
+ 
+ class ParameterSource(enum.IntEnum):
+@@ -1370,8 +1420,9 @@
+ 
+         parser = self.make_parser(ctx)
+         opts, args, param_order = parser.parse_args(args=args)
+-
+-        for param in iter_params_for_processing(param_order, self.get_params(ctx)):
++        params = self.get_params(ctx)
++
++        for param in iter_params_for_processing(param_order, params):
+             _, args = param.handle_parse_result(ctx, opts, args)
+ 
+         # We now have all parameters' values into `ctx.params`, but the data may contain
+@@ -1383,6 +1434,9 @@
+         for name, value in ctx.params.items():
+             if value is UNSET:
+                 ctx.params[name] = None
++
++        if not ctx.resilient_parsing:
++            _check_option_constraints(ctx, params)
+ 
+         if args and not ctx.allow_extra_args and not ctx.resilient_parsing:
+             ctx.fail(
+@@ -2932,6 +2986,10 @@
+                                context.
+     :param help: the help string.
+     :param hidden: hide this option from help outputs.
++    :param requires: names of other parameters (not option strings) that must
++        be explicitly provided whenever this option is explicitly provided.
++    :param conflicts_with: names of other parameters (not option strings) that
++        cannot be explicitly provided together with this option.
+     :param attrs: Other command arguments described in :class:`Parameter`.
+ 
+     .. versionchanged:: 8.4.0
+@@ -2979,6 +3037,8 @@
+     show_default: bool | str | None
+     show_choices: bool
+     show_envvar: bool
++    requires: tuple[str, ...]
++    conflicts_with: tuple[str, ...]
+ 
+     def __init__(
+         self,
+@@ -2999,6 +3059,8 @@
+         show_choices: bool = True,
+         show_envvar: bool = False,
+         deprecated: bool | str = False,
++        requires: cabc.Sequence[str] | None = None,
++        conflicts_with: cabc.Sequence[str] | None = None,
+         **attrs: t.Any,
+     ) -> None:
+         super().__init__(
+@@ -3054,8 +3116,35 @@
+         self.show_choices = show_choices
+         self.show_envvar = show_envvar
+ 
++        # Phase 4b: cross-parameter constraints, checked in Command.parse_args.
++        self.requires = self._normalize_constraint_names("requires", requires)
++        self.conflicts_with = self._normalize_constraint_names(
++            "conflicts_with", conflicts_with
++        )
++
+         # Phase 5: validate. Raises on illegal kwarg combinations.
+         self._validate(prompt, deprecated)
++
++    def _normalize_constraint_names(
++        self, arg_name: str, names: cabc.Sequence[str] | None
++    ) -> tuple[str, ...]:
++        """Validate a ``requires`` or ``conflicts_with`` argument and store it as a
++        tuple of parameter names.
++        """
++        if names is None:
++            return ()
++
++        if isinstance(names, str):
++            raise TypeError(
++                f"'{arg_name}' must be a sequence of parameter names, not a string."
++            )
++
++        result = tuple(names)
++
++        if self.name in result:
++            raise ValueError(f"Option '{self.name}' cannot refer to itself.")
++
++        return result
+ 
+     @property
+     def is_bool_flag(self) -> bool:

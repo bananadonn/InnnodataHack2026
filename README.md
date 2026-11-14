@@ -5,6 +5,8 @@ packages on top of `pallets/click`, validates them (oracle reward 1.0, nop rewar
 benchmarks `anthropic/claude-haiku-5-5` on them via the `terminus-2` agent at k=3.
 
 **Deliverable:** the pipeline, 5 validated task packages, evidence, and a writeup.
+
+For ordered commands to run every agent, start with [run_pipeline.md](run_pipeline.md).
 The organizer brief, rubric and submission rules are in [`kit/`](kit/README.md). Read
 `kit/BRIEF.md` and `kit/docs/harbor_task_interface.md` first.
 
@@ -16,6 +18,7 @@ The organizer brief, rubric and submission rules are in [`kit/`](kit/README.md).
 | click base template (`templates/click_base/`) | Dockerfile written, **not yet built or tested**; grading files are TODO placeholders |
 | Kit grading files (`grade.py`, `test.sh`, ...) | **missing**, see [`kit/MISSING.md`](kit/MISSING.md) |
 | Repo exploration (`pipeline/explore.py`) | implemented (Claude Agent SDK) |
+| Coding agents | Haiku candidate + independent OpenRouter reference; authoring scaffold, execution validation pending |
 | Rest of the pipeline (`pipeline/`) | stubs only |
 | Generated tasks, selfcheck, benchmark | none yet |
 
@@ -58,6 +61,12 @@ uv run python -m pipeline.cli ask <run_id> "Where are option defaults resolved?"
 uv run python -m pipeline.cli propose <run_id> --n 5
 uv run python -m pipeline.cli tests <run_id>
 
+# Prepare separate Haiku/reference coding workspaces, without paid calls
+uv run python -m pipeline.cli code <run_id> --agent both
+
+# Author one feature through both providers (uses the team's API budgets)
+uv run python -m pipeline.cli code <run_id> --agent both --feature <slug> --execute
+
 # 1. Generate packages into generated_tasks/   (stub for now)
 uv run python -m pipeline.cli generate --n 5
 
@@ -85,6 +94,13 @@ Outputs are in `runs/<run_id>/feature_tests/attempt_N/`: `regression_tests.json`
 as blocked drafts. Each invocation keeps previous attempts. Test files are drafts: syntax
 and path checks are performed, but tests are not executed, collected IDs are not invented,
 and Harbor/oracle/nop/mutation validation remains pending until a gold implementation exists.
+
+The two coding agents live in separate modules: `pipeline/haiku_agent.py` uses the Claude
+Agent SDK with the `haiku` alias, and `pipeline/reference_agent.py` uses OpenRouter with
+`OPENROUTER_REFERENCE_MODEL` (default `anthropic/claude-opus-4.6`). Shared preparation and
+source-only patch checks live in `pipeline/coding_common.py`; orchestration lives in
+`pipeline/coding.py`. See [coding-agent details](docs/CODING_AGENTS.md) for the scaffold's
+boundaries and output layout. No output is accepted as validated gold until execution gates pass.
 
 ## Layout
 

@@ -1,0 +1,12 @@
+{
+  "status": "ok",
+  "session_id": "123787c1-b8ad-42d7-bbb7-7a61528b5be1",
+  "model": "haiku",
+  "queries": 1,
+  "num_turns": 13,
+  "duration_ms": 209637,
+  "total_cost_usd": 0.047642,
+  "n_input_tokens": 3592,
+  "n_output_tokens": 68734,
+  "n_cache_tokens": 307554
+}

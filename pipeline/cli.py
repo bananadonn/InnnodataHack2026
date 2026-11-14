@@ -4,6 +4,7 @@ Usage:
     python -m pipeline.cli explore https://github.com/pallets/click --ref 8.5.1
     python -m pipeline.cli propose <run_id> --n 5
     python -m pipeline.cli tests <run_id>
+    python -m pipeline.cli code <run_id> --agent both --feature <slug>
     python -m pipeline.cli ask <run_id> "Where are option defaults resolved?"
     python -m pipeline.cli generate --n 5
 """
@@ -90,6 +91,18 @@ def cmd_tests(run_id: str) -> int:
     return 0
 
 
+def cmd_code(run_id: str, agent: str, feature: str | None, execute: bool) -> int:
+    from pipeline.coding import run_coding_agents
+    from pipeline.explore import ExploreError
+
+    try:
+        asyncio.run(run_coding_agents(run_id, agent=agent, feature_slug=feature, execute=execute))
+    except ExploreError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="pipeline", description="Harbor task factory for pallets/click")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -101,6 +114,11 @@ def build_parser() -> argparse.ArgumentParser:
     pro.add_argument("--n", type=int, default=5, help="number of features (default 5)")
     tests = sub.add_parser("tests", help="create feature-test drafts and find existing regression test folders")
     tests.add_argument("run_id")
+    code = sub.add_parser("code", help="prepare coding-agent jobs; use --execute for paid model calls")
+    code.add_argument("run_id")
+    code.add_argument("--agent", choices=["haiku", "reference", "both"], default="both")
+    code.add_argument("--feature", default=None, help="feature slug (default: all proposed features)")
+    code.add_argument("--execute", action="store_true", help="call the providers and author candidate patches")
     ask = sub.add_parser("ask", help="ask a follow-up question about an explored repository")
     ask.add_argument("run_id")
     ask.add_argument("question")
@@ -120,6 +138,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_propose(args.run_id, args.n)
     if args.command == "tests":
         return cmd_tests(args.run_id)
+    if args.command == "code":
+        return cmd_code(args.run_id, args.agent, args.feature, args.execute)
     if args.command == "ask":
         return cmd_ask(args.run_id, args.question)
     if args.command == "generate":
