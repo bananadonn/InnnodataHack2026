@@ -8,6 +8,7 @@ __pycache__/
 
 # OS junk
 .DS_Store
+._*
 
 # local click clone (never commit; the Dockerfile clones it)
 /click/
