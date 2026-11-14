@@ -1,0 +1,982 @@
+{
+  "variation_strategy": "The 15 candidates cover 15 categories and 8 primary source files: core.py, exceptions.py, types.py, termui.py, formatting.py, parser.py, testing.py and shell_completion.py. They differ in four ways. (1) Capability: validation, derived defaults, deprecation, dispatch, error aggregation, types, prompts, styling, help layout, parsing, testing, completion and source merging. (2) Behavioral shape: thresholds (occurrence limits, attempt limits, step grids), precedence (accumulated sources, style presets, alias versus canonical), ordering (chain order, numbered-list alignment, fuzzy ranking), state carried across calls (attempt counters, per-object repeat tracking, prompt transcripts) and order-independent resolution (default_from). (3) Integration depth: from single-module features (style presets, wrap_text lists) to features that cross the parser and core pipeline (deprecated spellings, repeat policy, aggregated missing params). (4) Interaction rules: each candidate has several precise rules that collide. Examples are DEFAULT-source exemptions, empty versus required, explicit None versus False, alias fallback only when nothing canonical matches, feature-switch options sharing a dest, and EOF prompts. All features are opt-in and default to the current behavior, so existing tests keep passing.",
+  "candidates": [
+    {
+      "slug": "multiple-occurrence-limits",
+      "category": "parameter validation",
+      "title": "min_occurrences / max_occurrences for multiple=True options",
+      "problem": "Options with multiple=True accept any number of occurrences. A CLI that needs 'between 2 and 4 --node values' has to write a callback, and that callback cannot tell a value the user supplied from a declared default. Validation that depends on the source is awkward to write by hand.",
+      "public_interface": [
+        "Option.__init__(..., min_occurrences: int | None = None, max_occurrences: int | None = None, **attrs)",
+        "click.option('--node', multiple=True, min_occurrences=2, max_occurrences=4)",
+        "Option.to_info_dict() gains keys 'min_occurrences' and 'max_occurrences' (None by default)"
+      ],
+      "behavior": [
+        "Either limit given without multiple=True raises TypeError(\"'min_occurrences' and 'max_occurrences' require 'multiple=True'.\") at construction. min_occurrences > max_occurrences raises ValueError. A limit below 0 raises ValueError.",
+        "One occurrence is one item of the final converted tuple. For nargs=2, `--pt 1 2 --pt 3 4` is 2 occurrences, not 4.",
+        "The check runs inside process_value after type conversion and before the callback. It applies when ctx.get_parameter_source(name) is COMMANDLINE, ENVIRONMENT or DEFAULT_MAP. Values from the parameter's own `default` (source DEFAULT) are never checked.",
+        "Too few values gives BadParameter 'Expected at least {min} values but got {n}.' ('at least 1 value' singular). Too many gives 'Expected at most {max} values but got {n}.' ('at most 1 value'). Both render as \"Error: Invalid value for '--node': ...\" with exit code 2.",
+        "Help extra text adds 'occurrences: 2-4', 'occurrences: >=2' or 'occurrences: <=3'. It goes after the range item and before 'required', separated by '; ', for example '[occurrences: 2-4; required]'."
+      ],
+      "interaction_rules": [
+        "Zero occurrences on a non-required option never triggers the min check, even with min_occurrences=1. On a required option, zero occurrences raises the existing MissingParameter message, not the occurrence error.",
+        "A type-conversion error on any item is reported before any occurrence-count error.",
+        "Under ctx.resilient_parsing (completion) occurrence errors are swallowed like other processing errors.",
+        "An envvar value 'a b c' for a multiple option is split first (existing behavior). The 3 resulting items count as 3 occurrences."
+      ],
+      "traps": [
+        "Counting raw strings instead of tuples: with nargs=2, envvar '1 2 3 4' is batched into 2 tuples, so max_occurrences=2 passes.",
+        "A declared default=('a',) with min_occurrences=2 must not error (source DEFAULT). The same ['a'] supplied through default_map must error (source DEFAULT_MAP).",
+        "An empty tuple on a non-required option has the 'missing' shape. It must be allowed rather than reported as 'Expected at least 1 values but got 0.'",
+        "Putting the check after the callback lets callbacks see invalid data, and a callback that changes the length changes the outcome. The check must run before the callback."
+      ],
+      "integration_points": [
+        "Parameter.process_value",
+        "Parameter.handle_parse_result (source recorded via Context.set_parameter_source before processing)",
+        "Option.get_help_extra / Option.get_help_record",
+        "Option.to_info_dict"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Option.__init__",
+            "Parameter.process_value",
+            "Context.get_parameter_source",
+            "Option.get_help_extra",
+            "Option.get_help_record",
+            "Option.to_info_dict",
+            "Option._validate"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_options.py",
+        "tests/test_info_dict.py",
+        "tests/test_defaults.py"
+      ],
+      "new_test_file": "tests/test_occurrence_limits.py",
+      "novelty_rationale": "Click has no occurrence-count limit; nargs is a per-occurrence arity. click-option-group and cloup constrain groups of different options, not how often one option repeats. argparse has no min/max count for action='append'. The exemption for the DEFAULT source is specific to Click's ParameterSource model.",
+      "estimated_gold_lines": 80
+    },
+    {
+      "slug": "option-default-from-param",
+      "category": "derived defaults",
+      "title": "default_from: default an option to another parameter's final value",
+      "problem": "A common pattern is '--output defaults to --input' or '--display-name defaults to NAME'. Today this needs a callback that reads ctx.params, which breaks when the other parameter is processed later. Click processes parameters in command-line order, eager ones first.",
+      "public_interface": [
+        "Option.__init__(..., default_from: str | None = None, **attrs)",
+        "click.option('--display-name', default_from='name')",
+        "Option.to_info_dict() gains key 'default_from'"
+      ],
+      "behavior": [
+        "default_from names another parameter by its Python name (Parameter.name). It applies only when this option would otherwise get its value from source DEFAULT, meaning no command-line, envvar or default_map value.",
+        "The borrowed value is the referenced parameter's final value in ctx.params, after its type conversion and callback. It is passed through this option's own type_cast_value and then its callback. The source recorded for this option stays ParameterSource.DEFAULT.",
+        "If the referenced final value is None, this option falls back to its own `default` (or None). If this option is required and the result is still missing, MissingParameter is raised.",
+        "Resolution does not depend on order. The result is the same whether the referenced parameter appears before or after this option on the command line, and whether either is eager.",
+        "Chains (a from b, b from c) resolve transitively. A cycle or an unknown name raises TypeError when the command parses, for example \"'default_from' refers to unknown parameter 'nme'.\" Combining default_from with prompt raises TypeError at construction.",
+        "With show_default enabled, help shows '[default: (same as --input)]' using the referenced option's get_help_spec opts (the first long opt) or an argument's metavar, e.g. '(same as NAME)'."
+      ],
+      "interaction_rules": [
+        "Explicit sources on this option (COMMANDLINE, ENVIRONMENT, DEFAULT_MAP) always beat default_from, even when the referenced parameter was given on the command line.",
+        "If the referenced parameter's callback transforms its value (e.g. upper-cases it), the transformed value is borrowed, not the raw string.",
+        "Under resilient_parsing, a referenced parameter whose processing failed has value None, so this option falls back to its own default."
+      ],
+      "traps": [
+        "Reading ctx.params[ref] inside consume_value fails when the referenced parameter is processed later. `cmd --name x` is handled correctly by accident, but an option given before the referenced argument in argv is not. Resolution needs a deferred pass after all parameters are processed.",
+        "The borrowed value must be cast with THIS option's type. Borrowing int 5 into a STRING option yields '5', and borrowing 'abc' into an INT option raises BadParameter naming this option.",
+        "An envvar set on this option must win over default_from. The source must be ENVIRONMENT, not DEFAULT.",
+        "If the referenced value is None, this option uses its own default rather than None, so default_from='x', default='fallback' gives 'fallback'."
+      ],
+      "integration_points": [
+        "Command.parse_args (deferred resolution pass)",
+        "Parameter.consume_value / Option.consume_value",
+        "Option.get_help_extra (default display)",
+        "Parameter.type_cast_value and callback invocation via Parameter.process_value"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Command.parse_args",
+            "Parameter.consume_value",
+            "Option.consume_value",
+            "Parameter.process_value",
+            "Parameter.type_cast_value",
+            "Option.get_help_extra",
+            "Option.get_help_spec",
+            "Context.set_parameter_source"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_options.py",
+        "tests/test_defaults.py",
+        "tests/test_context.py"
+      ],
+      "new_test_file": "tests/test_default_from.py",
+      "novelty_rationale": "Click only supports static or callable defaults with no access to other parameters. None of cloup, click-extra, click-params or click-option-group offers declarative cross-parameter defaults, and argparse has no equivalent.",
+      "estimated_gold_lines": 130
+    },
+    {
+      "slug": "deprecated-option-spellings",
+      "category": "deprecation",
+      "title": "deprecated_opts: old option spellings that still work but warn",
+      "problem": "Renaming --colour to --color breaks users. Click can deprecate a whole option, but not one spelling of it, and the parser does not record which spelling the user typed.",
+      "public_interface": [
+        "Option.__init__(..., deprecated_opts: cabc.Sequence[str] = (), **attrs)",
+        "click.option('--color', 'color', deprecated_opts=['--colour'])",
+        "Option.to_info_dict() gains key 'deprecated_opts' (list)"
+      ],
+      "behavior": [
+        "Each deprecated spelling is registered with the parser with the same dest and action as the primary opts. For a bool flag with secondary opts, a deprecated spelling acts as the primary (True) form.",
+        "Using a deprecated spelling on the command line echoes in red to stderr: \"DeprecationWarning: The option '--colour' is deprecated. Use '--color' instead.\" The replacement is the first opt in self.opts with a two-character prefix ('--'), or self.opts[0] if there is none.",
+        "The message is printed at most once per invocation per spelling, even if the spelling is repeated with multiple=True.",
+        "Deprecated spellings do not appear in the help spec (get_help_spec), are not offered by shell completion, and are not proposed in NoSuchOption 'Did you mean' suggestions.",
+        "If the option itself has deprecated=True, using a deprecated spelling prints only the option-level message ('The option ... is deprecated.'), not both.",
+        "A deprecated spelling that duplicates one of the option's own opts or secondary_opts raises ValueError at construction."
+      ],
+      "interaction_rules": [
+        "Values from envvar or default_map never trigger the spelling warning, because the user typed no spelling.",
+        "When primary and deprecated spellings are mixed (`--color red --colour blue`, multiple=False), existing last-wins behavior applies (value 'blue') and the warning is still printed once.",
+        "Option-level deprecation supersedes spelling deprecation. Exactly one deprecation line goes to stderr in that case."
+      ],
+      "traps": [
+        "Warning whenever the option's source is COMMANDLINE warns for '--color' too. Only the spelling actually typed matters, so the parser must report it.",
+        "Adding the spelling to self.opts makes it show up in help and completion and in get_params' duplicate-opts check. It has to be kept separate.",
+        "The suggestion list comes from parser._long_opt. Registering the deprecated spelling there would make `--colr` suggest '--colour'; it must suggest only '--color'.",
+        "Printing on every occurrence with multiple=True gives repeated lines. The required output is exactly one line per spelling."
+      ],
+      "integration_points": [
+        "Option.add_to_parser",
+        "_OptionParser.add_option / _OptionParser._match_long_opt (spelling recording, suggestion filtering)",
+        "Parameter.handle_parse_result (deprecation messaging)",
+        "Command.shell_complete (option name completion)"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Option.__init__",
+            "Option.add_to_parser",
+            "Option.get_help_spec",
+            "Parameter.handle_parse_result",
+            "Command.shell_complete",
+            "Option.to_info_dict"
+          ]
+        },
+        {
+          "module": "src/click/parser.py",
+          "interfaces": [
+            "_OptionParser.add_option",
+            "_OptionParser._match_long_opt",
+            "_Option.process"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/core.py",
+        "src/click/parser.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_options.py",
+        "tests/test_parser.py",
+        "tests/test_shell_completion.py",
+        "tests/test_info_dict.py"
+      ],
+      "new_test_file": "tests/test_deprecated_opts.py",
+      "novelty_rationale": "Click 8.5 deprecates whole options and commands only. argparse has a deprecated flag per argument (3.13) but not per spelling, and does not filter suggestions. None of the listed add-ons provide per-spelling deprecation.",
+      "estimated_gold_lines": 120
+    },
+    {
+      "slug": "chain-usage-constraints",
+      "category": "group dispatch",
+      "title": "Usage limits and ordering constraints for chained subcommands",
+      "problem": "Chained groups (chain=True) accept any sequence of subcommands. Pipelines often need 'load at most once' or 'load must come before save'. Users cannot enforce this before subcommands start running, because the result callback only runs afterwards.",
+      "public_interface": [
+        "Group.__init__(..., chain_max_uses: cabc.Mapping[str, int] | None = None, chain_order: cabc.Sequence[str] | None = None, **kwargs)",
+        "click.group(chain=True, chain_max_uses={'load': 1}, chain_order=['load', 'transform', 'save'])"
+      ],
+      "behavior": [
+        "Passing chain_max_uses or chain_order to a group with chain=False raises TypeError at construction. A max-uses value below 1 raises ValueError.",
+        "Names are compared using the cmd_name returned by resolve_command, so a name normalized by token_normalize_func counts as the canonical name.",
+        "Exceeding a limit raises UsageError \"Command 'load' can be used at most 1 time.\" ('times' when the limit is greater than 1). Exit code is 2.",
+        "chain_order: for listed commands, their positions in the sequence must not decrease along the command line. Commands not listed are unconstrained and can appear anywhere. A violation raises UsageError \"Command 'load' must come before 'save'.\" The first offending command in command-line order is named first, and the listed command it conflicts with second.",
+        "All constraints are checked while sub-contexts are built in Group.invoke. That happens after the group callback has run but before ANY subcommand callback runs, so no subcommand output appears when a violation is found.",
+        "For CommandCollection, the constraints apply to commands resolved from sources as well, by their resolved names."
+      ],
+      "interaction_rules": [
+        "Repeating the same listed command (`load load`) is allowed by chain_order because positions do not decrease, but chain_max_uses can still reject it.",
+        "When both a max-uses violation and an order violation exist, the one reached first while scanning left to right is reported.",
+        "The group callback runs, and its output appears, before the constraint error, matching existing chain behavior where the group callback runs before sub-context creation."
+      ],
+      "traps": [
+        "Validating raw argv tokens instead of resolved names lets `LOAD` slip past a limit on 'load' when token_normalize_func=str.lower.",
+        "Validating inside the invocation loop lets earlier subcommands run before the error. All contexts must be validated before the first subcommand callback.",
+        "An unlisted command between listed ones (`load fmt save`) must not count as an order violation.",
+        "Order is non-decreasing, not strictly increasing, so `transform transform save` is valid."
+      ],
+      "integration_points": [
+        "Group.invoke (chain branch context-building loop)",
+        "Group.resolve_command (canonical names)",
+        "CommandCollection.get_command",
+        "Group.__init__ (validation)"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Group.__init__",
+            "Group.invoke",
+            "Group.resolve_command",
+            "CommandCollection.get_command",
+            "Context.fail"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_chain.py",
+        "tests/test_commands.py"
+      ],
+      "new_test_file": "tests/test_chain_constraints.py",
+      "novelty_rationale": "Neither Click nor the listed add-ons (cloup, click-default-group, click-aliases, click-extra) constrain chained subcommand multiplicity or order. argparse has no chained subcommands at all.",
+      "estimated_gold_lines": 90
+    },
+    {
+      "slug": "report-all-missing-params",
+      "category": "error reporting",
+      "title": "Report every missing required parameter in one error",
+      "problem": "Click stops at the first missing required parameter, so users fix errors one run at a time. The report's gap list notes that MissingParameter cannot report several missing parameters at once.",
+      "public_interface": [
+        "Context.__init__(..., report_all_missing: bool | None = None)  # inherited from parent when None; settable via context_settings",
+        "MissingParameter.__init__(..., params: cabc.Sequence[Parameter] | None = None)",
+        "MissingParameter.params: list[Parameter]  # [param] or the aggregated list"
+      ],
+      "behavior": [
+        "With report_all_missing enabled, Command.parse_args keeps processing the remaining parameters after a parameter raises MissingParameter. Missing parameters get None in ctx.params, and their callbacks are not called.",
+        "After all parameters are processed, if exactly one was missing, the MissingParameter raised has the same message as today, e.g. \"Missing option '--name'.\"",
+        "If two or more were missing, a single MissingParameter is raised whose message lists the hints in declaration order (Command.get_params order). All options gives \"Missing options '--a', '--b'.\", all arguments gives \"Missing arguments 'SRC', 'DST'.\", and a mix gives \"Missing parameters 'SRC', '--count'.\" Each hint is that parameter's get_error_hint(ctx). Per-type extra messages (e.g. Choice 'Choose from:') are omitted in the aggregated form.",
+        "The missing-parameter error is raised before the 'Got unexpected extra argument' check. Exit code is 2 and the usage line plus help hint are printed as for any UsageError.",
+        "str(exc) on the aggregated exception returns 'Missing parameters: a, b', using the parameter names joined by ', '."
+      ],
+      "interaction_rules": [
+        "A non-missing error (BadParameter from conversion, a callback error) raised by any parameter is raised immediately and discards the missing parameters collected so far.",
+        "Eager parameters such as --help still run first. `cmd --help` prints help and exits 0 even when required parameters are missing.",
+        "The setting is inherited by subcommand contexts unless they set it explicitly to False."
+      ],
+      "traps": [
+        "Listing hints in processing order (command-line order with eager first) instead of declaration order gives the wrong sequence when parameters are given in a different order on the command line.",
+        "Keeping the single-param message unchanged: with one missing parameter the output must be byte-identical to today's, including Choice's 'Choose from:' suffix.",
+        "Choosing the 'options' or 'arguments' wording must use param_type_name of every collected parameter. One argument among options switches it to 'parameters'.",
+        "A BadParameter after a collected missing parameter must surface as 'Invalid value ...', not as the aggregated missing message."
+      ],
+      "integration_points": [
+        "Command.parse_args",
+        "Parameter.handle_parse_result / Parameter.process_value (MissingParameter raise site)",
+        "MissingParameter.format_message / MissingParameter.__str__",
+        "Context.__init__ (setting inheritance)"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/exceptions.py",
+          "interfaces": [
+            "MissingParameter.__init__",
+            "MissingParameter.format_message",
+            "MissingParameter.__str__",
+            "UsageError.show"
+          ]
+        },
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Command.parse_args",
+            "Parameter.handle_parse_result",
+            "Parameter.process_value",
+            "Context.__init__",
+            "Parameter.get_error_hint"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/exceptions.py",
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_options.py",
+        "tests/test_arguments.py",
+        "tests/test_basic.py",
+        "tests/test_context.py"
+      ],
+      "new_test_file": "tests/test_missing_aggregate.py",
+      "novelty_rationale": "Click, argparse (which lists all missing required args, but has no source model, no eager/declaration-order distinction and no Click exception types) and the listed add-ons do not aggregate Click MissingParameter errors. This is a gap named in the exceptions card.",
+      "estimated_gold_lines": 95
+    },
+    {
+      "slug": "choice-aliases",
+      "category": "parameter types",
+      "title": "Choice aliases that map alternate spellings to canonical choices",
+      "problem": "Choice accepts only its exact (normalized) choices. Users want 'dev' to mean 'development' or 'y' to mean an Enum member without listing the aliases in help or errors. Overriding normalize_choice cannot express a many-to-one mapping.",
+      "public_interface": [
+        "Choice.__init__(self, choices, case_sensitive: bool = True, aliases: cabc.Mapping[str, _ValueT_co] | None = None)",
+        "Choice.aliases: dict[str, _ValueT_co]",
+        "Choice.to_info_dict() gains key 'aliases' ({} by default)"
+      ],
+      "behavior": [
+        "Every alias target must equal one of `choices`, otherwise ValueError is raised at construction. An alias whose normalization (with ctx=None) equals a canonical choice's normalization raises ValueError, as do two aliases that normalize the same.",
+        "convert tries canonical choices first, then aliases. A match returns the ORIGINAL choice object, e.g. the Enum member, not the alias string.",
+        "Aliases are normalized exactly like choices: ctx.token_normalize_func, then casefold when case_sensitive=False.",
+        "get_metavar, get_missing_message, get_invalid_choice_message and prompt choice display list canonical choices only, e.g. \"'x' is not one of 'development', 'production'.\"",
+        "shell_complete returns canonical choices matching the prefix, in declaration order. Aliases are included only when NO canonical choice matches the prefix."
+      ],
+      "interaction_rules": [
+        "Values from envvars and default_map pass through convert, so aliases work for every source.",
+        "case_sensitive=True: 'DEV' does not match alias 'dev'. case_sensitive=False: it does.",
+        "A token that exactly equals a canonical choice is never resolved through an alias. This matters only when token_normalize_func makes them collide at runtime, in which case the canonical choice wins."
+      ],
+      "traps": [
+        "Returning the alias target's normalized string instead of the original object breaks Enum choices, which must return the member.",
+        "Adding aliases to _normalized_mapping leaks them into the metavar '[development|production|dev]', error messages and the 'Choose from:' list.",
+        "Completion: incomplete 'd' with canonical 'development' and alias 'dev' must return only 'development'. Incomplete 'x' with alias 'xp' and no canonical match returns 'xp'.",
+        "Case folding has to apply to alias keys as well as the input. Folding only the input misses alias 'Dev' when case_sensitive=False."
+      ],
+      "integration_points": [
+        "Choice.convert",
+        "Choice.shell_complete",
+        "Choice.get_metavar / Choice.get_invalid_choice_message / Choice.get_missing_message",
+        "Choice.to_info_dict"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/types.py",
+          "interfaces": [
+            "Choice.__init__",
+            "Choice.convert",
+            "Choice.normalize_choice",
+            "Choice._normalized_mapping",
+            "Choice.shell_complete",
+            "Choice.get_invalid_choice_message",
+            "Choice.to_info_dict"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/types.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_types/test_Choice.py",
+        "tests/test_info_dict.py",
+        "tests/test_options.py",
+        "tests/test_shell_completion.py"
+      ],
+      "new_test_file": "tests/test_types/test_Choice_aliases.py",
+      "novelty_rationale": "Click's Choice has no aliases. click-aliases provides aliases for commands, not Choice values. click-params adds new types but not Choice value aliases. argparse choices has no aliases.",
+      "estimated_gold_lines": 75
+    },
+    {
+      "slug": "intrange-step-grid",
+      "category": "numeric types",
+      "title": "IntRange step: restrict accepted integers to a grid",
+      "problem": "Ports in steps of 10 or percentages in steps of 5 need a callback today, and the help text cannot show the constraint. IntRange already handles bounds, open ends and clamping, but has no step.",
+      "public_interface": [
+        "IntRange.__init__(self, min: int | None = None, max: int | None = None, min_open: bool = False, max_open: bool = False, clamp: bool = False, step: int | None = None)",
+        "IntRange.to_info_dict() gains key 'step'"
+      ],
+      "behavior": [
+        "step must be an int >= 1, otherwise ValueError. The grid anchor is min if min is not None, else max if max is not None, else 0.",
+        "A value is valid if it is inside the range (respecting open bounds) and (value - anchor) % step == 0.",
+        "An in-range value that is off the grid fails with '{value} is not a multiple of {step} from {anchor}.' rendered via BadParameter, e.g. \"Invalid value for '--pct': 7 is not a multiple of 5 from 0.\"",
+        "With clamp=True, an out-of-range value snaps to the nearest valid grid point inside the range. Below range it snaps to the smallest grid point that satisfies the min bound; above range, to the largest grid point that satisfies the max bound.",
+        "Help text and repr append the step: '0<=x<=100 (step 5)', and repr '<IntRange 0<=x<=100 (step 5) clamped>'.",
+        "A bounded range containing no valid grid point raises ValueError at construction (e.g. min=0, max=4, min_open=True, step=5)."
+      ],
+      "interaction_rules": [
+        "Out-of-range takes precedence over off-grid. Without clamp, 103 with max 100 reports the existing range message, not the step message.",
+        "Clamp only fixes out-of-range values. An in-range off-grid value still fails even when clamp=True.",
+        "With min_open the anchor is still min, so min itself is excluded and min+step is the first valid value."
+      ],
+      "traps": [
+        "Clamping above max to `max` itself when max is off the grid: IntRange(0, 10, step=3, clamp=True) given 15 must give 9, not 10.",
+        "Anchoring at 0 when min is None but max is set: IntRange(max=10, step=3) accepts 7 and rejects 6.",
+        "Open-min clamp: IntRange(0, 20, min_open=True, step=5, clamp=True) given -3 must give 5 (the next grid point), not 1 (the existing open-bound clamp of bound+1).",
+        "Count options use IntRange(min=0) internally and must keep their help suppression and behavior unchanged (step None)."
+      ],
+      "integration_points": [
+        "_NumberRangeBase.convert",
+        "IntRange._clamp",
+        "_NumberRangeBase._describe_range (help via Option.get_help_extra 'range')",
+        "_NumberRangeBase.to_info_dict"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/types.py",
+          "interfaces": [
+            "IntRange",
+            "IntRange._clamp",
+            "_NumberRangeBase.convert",
+            "_NumberRangeBase._describe_range",
+            "_NumberRangeBase.to_info_dict",
+            "_NumberRangeBase.__repr__"
+          ]
+        },
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Option.get_help_extra"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/types.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_info_dict.py",
+        "tests/test_options.py",
+        "tests/test_basic.py"
+      ],
+      "new_test_file": "tests/test_types/test_IntRange_step.py",
+      "novelty_rationale": "Neither Click's IntRange nor argparse has a step. I am not aware of click-params offering a stepped range with clamp-to-grid semantics. This extends an existing type rather than adding a standalone one.",
+      "estimated_gold_lines": 70
+    },
+    {
+      "slug": "custom-boolean-states",
+      "category": "flag and envvar interpretation",
+      "title": "Per-option true/false vocabularies for boolean parsing",
+      "problem": "BoolParamType.bool_states is a fixed global dict (types.py:822), and its docstring flags user configuration as future work. Localized CLIs ('si'/'no') or strict ones (only 'true'/'false') cannot change it. Option.value_from_envvar also calls the static str_to_bool for non-boolean flags, so a custom type alone would not be consistent.",
+      "public_interface": [
+        "BoolParamType.__init__(self, true_values: cabc.Iterable[str] | None = None, false_values: cabc.Iterable[str] | None = None)",
+        "BoolParamType.to_bool(self, value: str | bool) -> bool | None",
+        "Option.__init__(..., true_values: cabc.Iterable[str] | None = None, false_values: cabc.Iterable[str] | None = None, **attrs)"
+      ],
+      "behavior": [
+        "Configured strings are stripped and lower-cased at construction. If true_values is given it replaces the default true strings, and if false_values is given it replaces the default false strings. The side that was not given keeps the defaults.",
+        "The empty string maps to False unless '' appears in true_values. A string present in both sets raises ValueError at construction.",
+        "BoolParamType.convert uses the instance vocabulary. The error lists the instance's recognized strings sorted: \"'maybe' is not a valid boolean. Recognized values: , f, n, no, si, ...\" (same format as today). BoolParamType.str_to_bool stays static and unchanged.",
+        "Option(true_values/false_values) on a bool flag makes the option's type BoolParamType(true_values, false_values). On a non-bool flag (flag_value set), envvar interpretation in value_from_envvar uses that vocabulary. On a non-flag option, or together with an explicit type=, it raises TypeError.",
+        "BoolParamType() with no arguments behaves exactly as today, and the BOOL singleton is unaffected."
+      ],
+      "interaction_rules": [
+        "For a non-bool flag, an envvar value exactly equal to flag_value is still returned before boolean analysis, even if that string is also in false_values.",
+        "An envvar value the vocabulary does not recognize leaves a non-bool flag unset (existing None behavior), while for a bool flag it is a BadParameter.",
+        "Bool flag prompts use confirm() (y/n) and ignore the custom vocabulary. default_map strings for a bool flag go through the custom type."
+      ],
+      "traps": [
+        "Changing only BoolParamType misses Option.value_from_envvar's non-bool-flag path, which calls the static str_to_bool. With true_values=['si'], envvar 'si' must activate the flag (giving flag_value), and 'yes' must not.",
+        "Replacing both sides when only one is given: true_values=['si'] must keep 'no', 'false', '0' and the other defaults as false.",
+        "Mutating the class-level bool_states dict leaks into every other BOOL. The vocabulary must be per instance.",
+        "Configured 'SI' must match input 'si' and ' Si ', so normalization applies to configuration as well as input."
+      ],
+      "integration_points": [
+        "BoolParamType.convert",
+        "Option.value_from_envvar",
+        "Option._pick_type (type selection for flags)",
+        "Option.__init__ / Option._validate"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/types.py",
+          "interfaces": [
+            "BoolParamType",
+            "BoolParamType.str_to_bool",
+            "BoolParamType.convert"
+          ]
+        },
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Option.__init__",
+            "Option._pick_type",
+            "Option.value_from_envvar",
+            "Option._validate"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/types.py",
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_options.py",
+        "tests/test_basic.py",
+        "tests/test_defaults.py"
+      ],
+      "new_test_file": "tests/test_bool_states.py",
+      "novelty_rationale": "This is called out as future work in the bool_states docstring. Click, click-params and argparse have no per-option boolean vocabulary, and none of the listed add-ons patch envvar flag interpretation.",
+      "estimated_gold_lines": 85
+    },
+    {
+      "slug": "prompt-attempt-limit",
+      "category": "interactive prompts",
+      "title": "max_attempts for prompt(), confirm() and prompting options",
+      "problem": "prompt() loops forever on invalid input (termui.py:260-286) and confirm() loops on unrecognized answers. Scripts with a TTY, or kiosk-style tools, need to give up after N bad answers.",
+      "public_interface": [
+        "prompt(..., max_attempts: int | None = None) -> V",
+        "confirm(..., max_attempts: int | None = None) -> bool",
+        "Option.__init__(..., prompt_max_attempts: int | None = None, **attrs)"
+      ],
+      "behavior": [
+        "max_attempts < 1 raises ValueError when prompt or confirm is called. None means unlimited (current behavior).",
+        "For prompt, one attempt is a value that fails value_proc with UsageError, or a confirmation_prompt mismatch. A mismatch counts once, not as two inputs.",
+        "Empty input that re-prompts because there is no default does NOT count. Empty input that takes the default and then fails conversion DOES count.",
+        "For confirm, one attempt is an input that is not y/yes/n/no and is not an empty input accepted by a non-None default.",
+        "When the limit is reached, the usual 'Error: ...' line for the last failure is echoed first, then 'Error: Too many invalid attempts (3).', and Abort is raised. Both lines go to stderr when err=True.",
+        "Option(prompt_max_attempts=N) forwards the limit to prompt() or confirm() from prompt_for_value, including the bool-flag confirm path. Under main(), the Abort prints 'Aborted!' and exits with 1."
+      ],
+      "interaction_rules": [
+        "hide_input masking of error messages still applies to every echoed error, including the last one before the limit message.",
+        "KeyboardInterrupt and EOFError still raise Abort immediately, whatever the attempt count.",
+        "The counter is per call: each Option prompt in one invocation has its own counter."
+      ],
+      "traps": [
+        "Counting every loop iteration counts empty re-prompts. Input sequence '', 'x', '', 'y', '5' with type=int and max_attempts=2 aborts after 'y' (two counted failures), so '5' is never read.",
+        "A confirmation mismatch counted twice (value and confirmation) aborts too early. With max_attempts=2, a mismatch followed by a bad value is exactly 2 attempts.",
+        "Skipping the last error message: output must show the final 'Error: ... is not a valid integer.' line before 'Error: Too many invalid attempts (2).'",
+        "For a bool-flag prompt, Option.prompt_for_value goes through confirm(), not prompt(), so the limit must be forwarded on that path too."
+      ],
+      "integration_points": [
+        "prompt",
+        "confirm",
+        "Option.prompt_for_value",
+        "Option.consume_value (prompt trigger)"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/termui.py",
+          "interfaces": [
+            "prompt",
+            "confirm",
+            "_readline_prompt"
+          ]
+        },
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Option.__init__",
+            "Option.prompt_for_value",
+            "Option.consume_value"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/termui.py",
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_utils/test_prompt.py",
+        "tests/test_termui.py",
+        "tests/test_options.py"
+      ],
+      "new_test_file": "tests/test_prompt_attempts.py",
+      "novelty_rationale": "This is an identified gap in the termui card. The open PromptBuilder PR (#2880) only customizes formatting, not retry limits. No listed add-on provides a retry cap.",
+      "estimated_gold_lines": 75
+    },
+    {
+      "slug": "style-presets-registry",
+      "category": "terminal styling",
+      "title": "Named style presets for style() and secho()",
+      "problem": "Applications repeat the same style kwargs, such as fg='red', bold=True for errors, everywhere. style() has no reusable named style and no way to layer one style on another while still overriding single attributes.",
+      "public_interface": [
+        "click.register_style(name: str, **styles: t.Any) -> None  (defined in termui.py, re-exported in click/__init__.py)",
+        "click.unregister_style(name: str) -> None",
+        "style(text, fg=None, ..., reset=True, preset: str | cabc.Sequence[str] | None = None) -> str",
+        "secho(..., **styles) accepts preset via styles"
+      ],
+      "behavior": [
+        "register_style accepts only style()'s attribute keywords: fg, bg, bold, dim, underline, overline, italic, blink, reverse, strikethrough. Anything else, including 'reset' and 'preset', raises TypeError. Colors are validated at registration with the same ValueError as style(). Re-registering a name replaces it.",
+        "preset may be one name or a sequence of names. Presets are merged left to right, and later presets override earlier ones key by key.",
+        "Explicit style() keyword arguments that are not None override the merged presets. An explicit None means 'not specified' and leaves the preset value in place.",
+        "The merged attributes are emitted in style()'s fixed order (fg, bg, bold, dim, underline, overline, italic, blink, reverse, strikethrough), so output does not depend on preset order. reset comes only from the explicit reset argument.",
+        "An unknown preset name raises ValueError(\"Unknown style preset 'name'.\"). unregister_style on an unknown name raises KeyError."
+      ],
+      "interaction_rules": [
+        "To switch off a preset's bold, pass bold=False, which emits '\\x1b[22m'. bold=None keeps the preset's bold.",
+        "secho(message, preset='error') styles str messages, but bytes messages still skip styling.",
+        "A preset is resolved when style() is called, so re-registering a name changes later calls but never output already produced."
+      ],
+      "traps": [
+        "Treating explicit None as an override: style('x', preset='err', fg=None) with err={fg:'red'} must still be red ('\\x1b[31mx\\x1b[0m').",
+        "Emitting codes in preset or merge order gives different byte strings. The order must be style()'s fixed order, e.g. bg before bold even if bold was merged first.",
+        "Accepting 'reset' inside a preset makes reset depend on the preset. It must raise TypeError at registration.",
+        "Validating colors lazily raises at style() time instead of registration. register_style('x', fg='nope') must raise ValueError immediately."
+      ],
+      "integration_points": [
+        "style",
+        "secho",
+        "click/__init__.py public re-exports",
+        "_interpret_color (validation)"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/termui.py",
+          "interfaces": [
+            "style",
+            "secho",
+            "_interpret_color"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/termui.py",
+        "src/click/__init__.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_termui.py",
+        "tests/test_imports.py",
+        "tests/test_utils/test_echo.py"
+      ],
+      "new_test_file": "tests/test_style_presets.py",
+      "novelty_rationale": "Click's style() takes only literal attributes. rich has themes, but that is a separate rendering library, not a drop-in for click.style. click-help-colors and rich-click style help output only. The precedence and code-ordering rules are specific to this design.",
+      "estimated_gold_lines": 70
+    },
+    {
+      "slug": "help-text-list-formatting",
+      "category": "help formatting",
+      "title": "Opt-in bullet and numbered list layout in help text",
+      "problem": "Help text with '- item' lines is re-flowed into one paragraph unless the author uses the '\\b' marker, which then disables wrapping entirely. Lists in help need hanging-indent wrapping.",
+      "public_interface": [
+        "wrap_text(text, width=78, initial_indent='', subsequent_indent='', preserve_paragraphs=False, format_lists: bool = False) -> str",
+        "HelpFormatter.__init__(self, indent_increment=2, width=None, max_width=None, format_lists: bool = False)",
+        "Context.__init__(..., format_lists: bool | None = None)  # inherited from parent; passed to HelpFormatter by Context.make_formatter"
+      ],
+      "behavior": [
+        "Lists are recognized only when preserve_paragraphs=True and format_lists=True. A paragraph is a list paragraph only if its first line (after the paragraph's leading indent) starts with a marker: '- ', '* ' or '<digits>. '. The marker must be followed by a space, so '-x' and '--flag' are not markers.",
+        "In a list paragraph, each line starting with a marker begins a new item. Other lines are continuations and are joined to the current item with a single space.",
+        "Each item is wrapped to the width with first-line indent = paragraph indent + marker and continuation indent = paragraph indent + spaces equal to the widest marker in that paragraph. Items are separated by a single newline.",
+        "In a numbered list with markers of different widths, shorter markers are right-padded with spaces ('9. ' becomes '9.  ' when '10. ' is present) so all item texts start in the same column.",
+        "Width is measured with term_len, so ANSI codes in items do not affect wrapping (existing guarantee).",
+        "HelpFormatter.write_text and write_dl pass format_lists to wrap_text. Context(format_lists=True) enables it for command help and option help."
+      ],
+      "interaction_rules": [
+        "A '\\b' paragraph stays verbatim even if its lines look like list items. '\\b' takes precedence.",
+        "A paragraph whose first line is ordinary text stays ordinary even if later lines start with '- '. Detection only looks at the first line.",
+        "With format_lists=False (the default) output is byte-identical to today, including paragraphs that start with '- '."
+      ],
+      "traps": [
+        "Recognizing a marker on any line instead of only the first: 'Use the - key\\n- not a list' must be re-flowed as plain text.",
+        "Indenting continuations by each item's own marker width instead of the widest marker misaligns items 1-9 against item 10.",
+        "Treating '--verbose enables logging' as a '-' bullet. The marker needs exactly '-' followed by a space.",
+        "Losing the paragraph's own leading indent (extra_indent): an indented list keeps that indent before every marker and continuation."
+      ],
+      "integration_points": [
+        "wrap_text",
+        "HelpFormatter.write_text",
+        "HelpFormatter.write_dl",
+        "Context.make_formatter / Context.__init__"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/formatting.py",
+          "interfaces": [
+            "wrap_text",
+            "HelpFormatter.__init__",
+            "HelpFormatter.write_text",
+            "HelpFormatter.write_dl"
+          ]
+        },
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Context.__init__",
+            "Context.make_formatter"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/formatting.py",
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_formatting.py",
+        "tests/test_basic.py",
+        "tests/test_commands.py"
+      ],
+      "new_test_file": "tests/test_help_lists.py",
+      "novelty_rationale": "Click only has the all-or-nothing '\\b' marker. rich-click renders Markdown by replacing Click's formatter with rich. This feature keeps Click's own plain-text HelpFormatter and adds opt-in hanging-indent lists. argparse's RawTextHelpFormatter does not wrap lists.",
+      "estimated_gold_lines": 90
+    },
+    {
+      "slug": "option-repeat-policy",
+      "category": "option parsing",
+      "title": "on_repeat policy for non-multiple options given more than once",
+      "problem": "When a single-value option is given twice (`--env prod --env dev`), the last value wins silently, which hides mistakes in long command lines. Some CLIs want first-wins or an error.",
+      "public_interface": [
+        "Option.__init__(..., on_repeat: t.Literal['last', 'first', 'error'] = 'last', **attrs)",
+        "Option.to_info_dict() gains key 'on_repeat'"
+      ],
+      "behavior": [
+        "'last' is today's behavior. 'first' keeps the first command-line value. 'error' raises BadOptionUsage when the same Option object is used a second time.",
+        "Repetition is counted per Option object over all its spellings, including secondary opts: `--shout --no-shout` is a repetition of one bool flag.",
+        "The 'error' message is \"Option '--env' cannot be given more than once.\" and names the spelling used at the second occurrence. Exit code is 2.",
+        "on_repeat other than 'last' together with multiple=True or count=True raises TypeError at construction. An unknown value raises ValueError.",
+        "The policy only concerns command-line tokens. Envvar and default_map are single sources and never count as repeats."
+      ],
+      "interaction_rules": [
+        "Feature-switch options are separate Option objects sharing one dest (e.g. --upper/--lower with flag_value). Using both is NOT a repetition, and the existing last-wins arbitration between them stays.",
+        "The error is raised during parsing, before any parameter is processed. `--env a --env b --help` fails with the repeat error instead of showing help, like other parse errors.",
+        "Under resilient_parsing (completion) the parser's UsageError is swallowed as usual, and the policy only decides which value is kept."
+      ],
+      "traps": [
+        "Tracking repeats by dest instead of by Option object flags feature switches (--upper then --lower) as repeats.",
+        "Tracking by spelling instead of object misses `-e a --env b` and `--shout --no-shout` repeats.",
+        "For 'first' with a bool flag that has secondary opts, `--no-shout --shout` must give False, the first occurrence's const, not the last.",
+        "Naming the first spelling in the error instead of the second: `--env a -e b` must mention '-e'."
+      ],
+      "integration_points": [
+        "Option.add_to_parser",
+        "_Option.process / _ParsingState (per-object occurrence tracking)",
+        "_OptionParser.parse_args (resilient error swallowing)",
+        "Option.to_info_dict"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/parser.py",
+          "interfaces": [
+            "_Option.process",
+            "_OptionParser.add_option",
+            "_OptionParser.parse_args",
+            "_ParsingState"
+          ]
+        },
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Option.__init__",
+            "Option.add_to_parser",
+            "Option._validate",
+            "Option.to_info_dict"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/parser.py",
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_parser.py",
+        "tests/test_options.py",
+        "tests/test_info_dict.py"
+      ],
+      "new_test_file": "tests/test_repeat_policy.py",
+      "novelty_rationale": "Neither Click nor argparse can reject or first-win a repeated store option. The listed add-ons do not touch parser actions. The per-object versus per-dest rule follows from Click's feature-switch design.",
+      "estimated_gold_lines": 75
+    },
+    {
+      "slug": "clirunner-prompt-transcript",
+      "category": "testing support",
+      "title": "CliRunner records a transcript of prompts and accepts list input",
+      "problem": "Tests of interactive commands can only compare mixed output text. They cannot check which prompts were shown, in what order, which answer each received, or whether input ran out, and building multi-line input strings by hand is error-prone.",
+      "public_interface": [
+        "class PromptRecord(t.NamedTuple): text: str; answer: str | None; hidden: bool  (in click.testing)",
+        "Result.prompts: list[PromptRecord]",
+        "Result.input_exhausted: bool",
+        "CliRunner.invoke(cli, args=None, input: str | bytes | t.IO[t.Any] | cabc.Sequence[str] | None = None, ...)"
+      ],
+      "behavior": [
+        "Every call to the runner's visible or hidden input hook appends a PromptRecord. text is the exact prompt string received, e.g. 'Name [bob]: '. This covers prompt(), confirm() and Option prompts.",
+        "answer is the line consumed without its trailing newline. For hidden prompts answer is always None and hidden=True, so secrets are never stored.",
+        "When input runs out at a prompt, a record with answer=None is appended, input_exhausted becomes True, and EOFError propagates as before (Abort, exit code 1, 'Aborted!').",
+        "input given as a list or tuple of strings is joined with '\\n' plus a trailing '\\n'. An element containing '\\n' or '\\r' raises ValueError before the command runs. A str or bytes input behaves exactly as before.",
+        "Re-prompts after invalid input each produce their own record in order. getchar() and pause() are not recorded."
+      ],
+      "interaction_rules": [
+        "Prompt text is recorded after ANSI stripping, i.e. as _readline_prompt passes it when color is off. With color=True the raw styled text is recorded.",
+        "Prompts with err=True are recorded the same way. Their text goes to stderr, but the record is identical.",
+        "Result.prompts is [] and input_exhausted is False for commands that never prompt, including commands that exit early through --help."
+      ],
+      "traps": [
+        "Recording hidden answers: a password prompt's record must have answer None even though the command received the value.",
+        "A confirmation_prompt makes two records ('Password: ' then 'Repeat for confirmation: '), not one.",
+        "Joining a list input without a trailing newline: the last answer must still be consumed. ['a', 'b'] yields 'a\\nb\\n'.",
+        "On EOF the exhausted prompt must still be recorded (answer None) before the Abort. Otherwise the record of where the command stopped is lost."
+      ],
+      "integration_points": [
+        "CliRunner.isolation (visible_input / hidden_input hooks)",
+        "CliRunner.invoke (input normalization, Result construction)",
+        "Result.__init__",
+        "make_input_stream"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/testing.py",
+          "interfaces": [
+            "CliRunner.isolation",
+            "CliRunner.invoke",
+            "Result.__init__",
+            "make_input_stream"
+          ]
+        },
+        {
+          "module": "src/click/termui.py",
+          "interfaces": [
+            "prompt",
+            "confirm",
+            "_readline_prompt"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/testing.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_testing.py",
+        "tests/test_utils/test_prompt.py",
+        "tests/test_termui.py"
+      ],
+      "new_test_file": "tests/test_prompt_transcript.py",
+      "novelty_rationale": "Recent upstream CliRunner additions cover context_settings, fd capture and ^D/^Z echo, but not prompt transcripts. pytest-click and other add-ons only wrap CliRunner. argparse has no test runner.",
+      "estimated_gold_lines": 70
+    },
+    {
+      "slug": "fuzzy-completion-fallback",
+      "category": "shell completion",
+      "title": "Fuzzy completion fallback when no prefix matches",
+      "problem": "If a user mistypes the start of a subcommand, option or choice ('stauts', '--verbse'), Tab completion offers nothing. Click already computes close matches for errors (NoSuchCommand and NoSuchOption use difflib), but completion does not.",
+      "public_interface": [
+        "Context.__init__(..., complete_fuzzy: bool | None = None)  # inherited from parent; settable via context_settings",
+        "ShellComplete.get_completions(self, args, incomplete) -> list[CompletionItem]  # behavior extended"
+      ],
+      "behavior": [
+        "After the usual obj.shell_complete(ctx, incomplete), if the result is non-empty, or incomplete == '', or the resolved ctx.complete_fuzzy is not True, the result is returned unchanged.",
+        "Otherwise candidates come from obj.shell_complete(ctx, seed). seed is the leading run of non-alphanumeric characters of incomplete: '--' for '--verbse', '' for 'stauts'.",
+        "Candidates with type 'file' or 'dir' are dropped. Duplicate values keep their first occurrence.",
+        "The result is the candidate items whose value is in difflib.get_close_matches(incomplete, values, n=3, cutoff=0.6), in the order get_close_matches returns. Each item keeps its original help text.",
+        "The same fallback applies to commands, option names, Choice values and custom shell_complete callbacks, because it wraps the object chosen by _resolve_incomplete."
+      ],
+      "interaction_rules": [
+        "Prefix matches always win. If any prefix match exists, fuzzy candidates are not added even when they are closer.",
+        "Hidden commands and hidden options are never suggested, because the candidate list comes from the existing shell_complete, which already filters them. Non-multiple options already given on the command line are also excluded (existing rule in Command.shell_complete).",
+        "The setting is read from the deepest resolved context, so a subcommand's context_settings can turn it off for that subcommand."
+      ],
+      "traps": [
+        "Calling shell_complete(ctx, '') for '--verbse' returns no options at all, because Command.shell_complete lists options only when incomplete starts with a non-alnum character. The seed must keep the prefix characters.",
+        "Sorting suggestions alphabetically instead of by difflib order gives the wrong order when several matches qualify.",
+        "Path completion returns a single 'file' or 'dir' item that the shell expands. Those must not be fuzzy-matched, so the result stays [].",
+        "Running fuzzy whenever results are few (instead of zero) changes existing completions."
+      ],
+      "integration_points": [
+        "ShellComplete.get_completions",
+        "Command.shell_complete / Group.shell_complete (candidate generation)",
+        "Choice.shell_complete",
+        "Context.__init__ (setting inheritance)"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/shell_completion.py",
+          "interfaces": [
+            "ShellComplete.get_completions",
+            "_resolve_context",
+            "_resolve_incomplete",
+            "CompletionItem"
+          ]
+        },
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Context.__init__",
+            "Command.shell_complete",
+            "Group.shell_complete"
+          ]
+        },
+        {
+          "module": "src/click/types.py",
+          "interfaces": [
+            "Choice.shell_complete"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/shell_completion.py",
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_shell_completion.py"
+      ],
+      "new_test_file": "tests/test_fuzzy_completion.py",
+      "novelty_rationale": "Click completion is prefix-only, and difflib is used only for error suggestions. argcomplete and the listed add-ons do not add a fuzzy fallback inside Click's ShellComplete pipeline.",
+      "estimated_gold_lines": 60
+    },
+    {
+      "slug": "accumulate-multi-sources",
+      "category": "value-source precedence",
+      "title": "accumulate=True: merge default_map, envvar and command-line values for multiple options",
+      "problem": "For multiple=True options, Click takes values from exactly one source: command line, then envvar, then default_map. Users often want config-file includes (default_map) plus env-provided includes plus CLI includes combined, which needs custom consume_value overrides today.",
+      "public_interface": [
+        "Option.__init__(..., accumulate: bool = False, **attrs)",
+        "Option.to_info_dict() gains key 'accumulate'"
+      ],
+      "behavior": [
+        "accumulate=True requires multiple=True and a non-flag, non-prompt option. Otherwise TypeError is raised at construction.",
+        "The final value concatenates the sources in this order: default_map values, then envvar values, then command-line values. Lower precedence comes first and there is no deduplication.",
+        "The option's own `default` is used only when none of the three sources contributes anything. It is never merged with them.",
+        "The recorded ParameterSource is the most explicit contributing source: COMMANDLINE if any command-line value, else ENVIRONMENT, else DEFAULT_MAP, else DEFAULT.",
+        "Envvar values are split as today (whitespace for nargs=1, batched for nargs>1). A default_map string for a nargs=1 option is ONE item, not split (existing consume_value only splits for nargs != 1). A default_map list contributes each element.",
+        "The callback runs once with the merged, type-cast tuple."
+      ],
+      "interaction_rules": [
+        "An empty envvar string counts as unset and contributes nothing (existing resolve_envvar_value rule).",
+        "With nargs=2, each source contributes whole tuples. A default_map list must already hold pairs, and the envvar is batched in pairs. Odd leftovers raise the existing 'Takes 2 values but 1 was given.' error.",
+        "required=True is satisfied if any source contributes at least one item."
+      ],
+      "traps": [
+        "Keeping the existing first-source-wins short-circuit in Parameter.consume_value: with envvar 'b c' and CLI --inc d, the value must be ('b', 'c', 'd'), not ('d',).",
+        "Mixing in the declared default: default=('x',) plus CLI --inc d must give ('d',), not ('x', 'd').",
+        "Reporting ENVIRONMENT, or the first source, when CLI values are present. get_parameter_source must return COMMANDLINE.",
+        "Splitting a default_map string 'a b' for a nargs=1 option. It must stay the single item 'a b', unlike the envvar 'a b', which becomes two items."
+      ],
+      "integration_points": [
+        "Parameter.consume_value / Option.consume_value",
+        "Option.value_from_envvar (splitting and batching)",
+        "Parameter.handle_parse_result (source recording)",
+        "Context.lookup_default"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Option.__init__",
+            "Parameter.consume_value",
+            "Option.consume_value",
+            "Option.value_from_envvar",
+            "Context.lookup_default",
+            "Parameter.handle_parse_result",
+            "Option.to_info_dict"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_options.py",
+        "tests/test_defaults.py",
+        "tests/test_context.py"
+      ],
+      "new_test_file": "tests/test_accumulate_sources.py",
+      "novelty_rationale": "Click's consume_value is strictly first-source-wins. click-extra adds config loading but not per-option accumulation across sources, and argparse has no source model.",
+      "estimated_gold_lines": 80
+    }
+  ]
+}

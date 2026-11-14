@@ -21,12 +21,33 @@ PYTHON_IMAGE = "python:3.12-slim"
 INSTANCE_ID_PREFIX = "pallets__click"
 
 # --- Models --------------------------------------------------------------------------
-# Everything that CREATES a task runs on Sonnet through the Claude Agent SDK, which reads
-# ANTHROPIC_API_KEY from the environment: exploring the repo, designing features, and writing
-# the spec, gold patch and hidden tests. Haiku is only the benchmark solver.
+# Everything that CREATES a task runs through the Claude Agent SDK, which reads ANTHROPIC_API_KEY
+# from the environment. Sonnet explores and audits novelty and value; Opus proposes, audits
+# difficulty, writes the specs and the golden solution. Haiku is only the solver (quiz, benchmark).
 EXPLORE_MODEL = "claude-sonnet-5-5"
-PROPOSE_MODEL = "claude-sonnet-5-5"
-GENERATION_MODEL = "claude-sonnet-5-5"
+PROPOSE_MODEL = "claude-opus-5-5"      # proposes candidate features
+NOVELTY_MODEL = "claude-sonnet-5-5"    # validation: novelty audit (web)
+VALUE_MODEL = "claude-sonnet-5-5"      # validation: value audit (web): real demand, fit, contrived rules
+DEMAND_MODEL = "claude-sonnet-5-5"     # mines real user requests (web) that candidates are designed from
+DEMAND_PER_SESSION = 12                # minimum still-missing requests per demand session (2 sessions)
+DEMAND_MAX_BUDGET_USD = 2.50           # per demand session
+DIFFICULTY_MODEL = "claude-opus-5-5"   # validation: difficulty audit
+SPEC_MODEL = "claude-opus-5-5"         # tightens selected features into full specs + case tables
+FAIRNESS_QUIZ_MODEL = "claude-sonnet-5-5"  # blind reader; must differ from SPEC_MODEL
+QUIZ_MODEL = "claude-haiku-5-5"        # blind reader; the benchmark model
+GENERATION_MODEL = "claude-opus-5-5"   # writes the golden solution (gold patch) and hidden tests
+
+N_CANDIDATES = 15
+N_FEATURES = 5
+AUDIT_BATCH_SIZE = 5           # candidates per audit session
+MIN_DIFFICULTY = 3             # candidates scoring below this are not selected
+MIN_VALUE = 3                  # candidates scoring below this, or not fitting the library, are not selected
+MIN_CASES = 15                 # case-table size per feature
+NOVELTY_MAX_BUDGET_USD = 2.00      # per batch
+DIFFICULTY_MAX_BUDGET_USD = 4.00   # per batch
+VALUE_MAX_BUDGET_USD = 2.00        # per batch
+SPEC_MAX_BUDGET_USD = 4.00         # per feature, including fix rounds
+QUIZ_MAX_BUDGET_USD = 0.75         # per quiz
 
 # Caps for every agent session. Budgets are the SDK's client-side estimate and can overshoot slightly.
 AGENT_MAX_TURNS = 60
@@ -35,7 +56,7 @@ AGENT_CONCURRENCY = 4          # agent sessions running at once
 MAP_MAX_BUDGET_USD = 2.00      # repo map (one session)
 CARD_MAX_BUDGET_USD = 1.50     # deep dive, per module
 UPSTREAM_MAX_BUDGET_USD = 1.50 # upstream novelty check (web)
-PROPOSE_MAX_BUDGET_USD = 4.00  # feature design
+PROPOSE_MAX_BUDGET_USD = 6.00  # candidate proposal
 DEEP_DIVE_MAX_MODULES = 8
 CLONE_TIMEOUT_SEC = 300
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"

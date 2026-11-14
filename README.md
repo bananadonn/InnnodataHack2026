@@ -16,7 +16,8 @@ The organizer brief, rubric and submission rules are in [`kit/`](kit/README.md).
 | click base template (`templates/click_base/`) | Dockerfile written, **not yet built or tested**; grading files are TODO placeholders |
 | Kit grading files (`grade.py`, `test.sh`, ...) | **missing**, see [`kit/MISSING.md`](kit/MISSING.md) |
 | Repo exploration (`pipeline/explore.py`) | implemented (Claude Agent SDK) |
-| Rest of the pipeline (`pipeline/`) | stubs only |
+| Feature design: propose, validate, spec (`pipeline/propose.py`, `audit.py`, `spec.py`) | implemented |
+| Golden solution, hidden tests, packaging (`pipeline/generate.py`, `select_p2p.py`, `validate.py`) | stubs only |
 | Generated tasks, selfcheck, benchmark | none yet |
 
 Plan and ownership: [`docs/PLAN.md`](docs/PLAN.md).
@@ -53,6 +54,13 @@ inside the WSL filesystem, not under `/mnt/c`.
 # 0. Explore the input repo: clone, read, research, write a report to runs/<run_id>/
 uv run python -m pipeline.cli explore https://github.com/pallets/click --ref 8.5.1
 uv run python -m pipeline.cli ask <run_id> "Where are option defaults resolved?"
+
+# 0b. Design the features: user demand → 15 candidates → novelty/value/difficulty audit → select 5 → specs + blind quiz
+uv run python -m pipeline.cli demand <run_id>
+uv run python -m pipeline.cli propose <run_id>
+uv run python -m pipeline.cli validate <run_id>
+uv run python -m pipeline.cli spec <run_id>
+# details: pipeline_plan.md → "How to Run"
 
 # 1. Generate packages into generated_tasks/   (stub for now)
 uv run python -m pipeline.cli generate --n 5
@@ -91,9 +99,11 @@ Raw harbor run directories land in `./sc` and `./bench` at the repo root and are
   All constants live in `pipeline/config.py`.
 - **Task IDs:** `pallets__click-0001-<kebab-slug>`. The folder name, `name` and `instance_id`
   in `task.toml` must all be identical.
-- **Models:** exploration and generation run on Claude Haiku through the Claude Agent SDK
-  (`GENERATION_MODEL` in `pipeline/config.py`), billed to the Anthropic key. Every agent run has
-  a turn, cost and wall-clock cap. Benchmark **only** with `anthropic/claude-haiku-5-5` via
+- **Models:** everything that creates a task runs through the Claude Agent SDK on the Anthropic
+  key: Sonnet 5.5 explores and audits novelty and value; Opus 5.5 proposes features, audits difficulty,
+  writes the specs and will write the golden solution. Haiku 5.5 is only the solver: the blind
+  quiz and the benchmark. The per-stage table is in `pipeline_plan.md`. Every agent session has a
+  turn, cost and wall-clock cap. Benchmark **only** with `anthropic/claude-haiku-5-5` via
   `terminus-2`. The benchmark shares the same $100 Anthropic allocation, so watch the spend.
 - **Benchmark k:** the Markdown guide says k=3, part of the Word guide says k=5. Unresolved;
   ask the organizers. Scripts use k=3 for now.

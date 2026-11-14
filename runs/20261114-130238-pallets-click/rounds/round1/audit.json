@@ -1,0 +1,1096 @@
+{
+  "novelty": {
+    "multiple-occurrence-limits": {
+      "slug": "multiple-occurrence-limits",
+      "verdict": "novel",
+      "closest_existing": "cloup's constraints (RequireAtLeast, AcceptAtMost, AcceptBetween) count how many parameters in a group are set. They do not count occurrences of one multiple=True option, and they have no source-aware check (DEFAULT excluded) and no help text. Click has no per-option count limit.",
+      "reasoning": "Searches of pallets/click issues for multiple, min, max, occurrences and limit returned 0 results. A general search found only the workaround of checking the tuple length in a callback or command body. The search surfaced a lightrun page titled 'add feature to forbid option be passed multiple times', but I did not open it. No max_occurrences appears in any ecosystem library I checked. I did not Grep the repo.",
+      "searches": [
+        "https://github.com/pallets/click/issues?q=multiple+min+max+occurrences",
+        "https://github.com/pallets/click/issues?q=multiple+option+limit+number+of+times",
+        "click multiple=True option minimum maximum number of values cloup OR click-option-group",
+        "https://cloup.readthedocs.io/en/stable/pages/constraints.html",
+        "click-extra OR cloup OR typer \"deprecated\" option alias \"default_from\" OR \"max_occurrences\" OR \"report all missing\""
+      ],
+      "evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=multiple+min+max+occurrences",
+          "finding": "The issue search returned 0 results."
+        },
+        {
+          "url": "https://cloup.readthedocs.io/en/stable/pages/constraints.html",
+          "finding": "Cloup constraints count parameters set within a group. They do not count the occurrences of a single multiple option."
+        }
+      ]
+    },
+    "option-default-from-param": {
+      "slug": "option-default-from-param",
+      "verdict": "novel",
+      "closest_existing": "The common workarounds are a click.Option subclass overriding get_default or prompt_for_value, or a callback that reads ctx.params. These are user code, not a declarative default_from with deferred, order-independent resolution. Typer has default_factory, which does not reference another parameter.",
+      "reasoning": "The pallets/click issue searches found no request or PR for defaulting to another parameter. The closest hits were PR #3030, #1329 and #1562, which concern defaults, sources and callbacks and not this feature. A general search showed Stack Overflow workarounds and no library API. I did not Grep the repo.",
+      "searches": [
+        "https://github.com/pallets/click/issues?q=default+from+another+parameter",
+        "https://github.com/pallets/click/issues?q=default+callback+ctx.params+another+option",
+        "click option default value from another option parameter python",
+        "https://cloup.readthedocs.io/en/stable/pages/constraints.html",
+        "click-extra OR cloup OR typer \"deprecated\" option alias \"default_from\" OR \"max_occurrences\" OR \"report all missing\""
+      ],
+      "evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=default+from+another+parameter",
+          "finding": "No issue matched the feature. The hits were only tangentially related."
+        },
+        {
+          "url": "https://cloup.readthedocs.io/en/stable/pages/constraints.html",
+          "finding": "Cloup has no constraint that supplies a default from another parameter."
+        }
+      ]
+    },
+    "deprecated-option-spellings": {
+      "slug": "deprecated-option-spellings",
+      "verdict": "novel",
+      "closest_existing": "Click's option-level deprecated=True came from issue #2263 / PR #2271 and deprecates the whole option. The issue text I read did not address deprecating individual aliases. oclif's deprecateAliases and clap aliases offer similar behavior, but they are in other languages.",
+      "reasoning": "Searches of pallets/click issues for deprecated option alias and spelling found nothing for per-spelling deprecation, beyond #2263. I did not open PR #2271, so I cannot confirm what it implemented. The web search found no Python CLI library with this feature. The search results listed oclif and clap. I did not open their pages.",
+      "searches": [
+        "https://github.com/pallets/click/issues?q=deprecated+option+alias+spelling",
+        "https://github.com/pallets/click/issues?q=deprecated+option+name+rename",
+        "https://github.com/pallets/click/issues/2263",
+        "click deprecated option alias spelling warn old name still works",
+        "click-extra OR cloup OR typer \"deprecated\" option alias \"default_from\" OR \"max_occurrences\" OR \"report all missing\""
+      ],
+      "evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues/2263",
+          "finding": "The issue asked for marking an option deprecated, with renaming as a use case, and was closed by PR #2271. The page does not say whether individual aliases are covered."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues?q=deprecated+option+alias+spelling",
+          "finding": "The search returned 0 results."
+        }
+      ]
+    },
+    "chain-usage-constraints": {
+      "slug": "chain-usage-constraints",
+      "verdict": "novel",
+      "closest_existing": "There is no Click or add-on feature for limiting or ordering chained subcommands. The only advice found was to count invocations manually, which was my own inference from the search results and not stated in a source.",
+      "reasoning": "Searches of the Click issues for chain order constraint returned 0 results. A broader search returned unrelated ordering issues. Web searches found docs for chain=True and no limits or ordering feature. I did not Grep the repo.",
+      "searches": [
+        "https://github.com/pallets/click/issues?q=chain+order+constraint",
+        "https://github.com/pallets/click/issues?q=chain+group+subcommand+twice+OR+order",
+        "click chain=True limit number of times subcommand used order constraint",
+        "click-extra OR cloup OR typer \"deprecated\" option alias \"default_from\" OR \"max_occurrences\" OR \"report all missing\""
+      ],
+      "evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=chain+order+constraint",
+          "finding": "The search returned 0 results."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues?q=chain+group+subcommand+twice+OR+order",
+          "finding": "The visible results were unrelated to chained subcommand restrictions."
+        }
+      ]
+    },
+    "report-all-missing-params": {
+      "slug": "report-all-missing-params",
+      "verdict": "novel",
+      "closest_existing": "Cloup's RequireAtLeast(1) lists the parameters of its group in its error. That is a group constraint and not an aggregation of every missing required parameter. Click raises on the first missing parameter.",
+      "reasoning": "Click issue searches turned up only #704 and #312, which concern the wording of a single missing-parameter message. No issue asks for aggregation. A general web search found only non-Click form-validation threads. Cloup's constraint page did not show aggregated missing-parameter reporting. I did not Grep the repo.",
+      "searches": [
+        "https://github.com/pallets/click/issues?q=report+all+missing+parameters",
+        "https://github.com/pallets/click/issues?q=MissingParameter+all+missing",
+        "click report all missing required options at once instead of first",
+        "https://cloup.readthedocs.io/en/stable/pages/constraints.html",
+        "click-extra OR cloup OR typer \"deprecated\" option alias \"default_from\" OR \"max_occurrences\" OR \"report all missing\""
+      ],
+      "evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=MissingParameter+all+missing",
+          "finding": "The hits were #704, #312 and PR #3030. None asks for aggregated missing-parameter reporting."
+        },
+        {
+          "url": "https://cloup.readthedocs.io/en/stable/pages/constraints.html",
+          "finding": "The constraints are group-level. The page does not show aggregation of all missing required parameters."
+        }
+      ]
+    },
+    "choice-aliases": {
+      "slug": "choice-aliases",
+      "verdict": "novel",
+      "closest_existing": "click-extra EnumChoice supports aliases on Enum names and values, but it is a separate Enum-specific type. It does not add a many-to-one alias mapping to click.Choice that is hidden from help, errors and completion.",
+      "reasoning": "No aliases, true_values, max_attempts, register_style or step= appear in repo/src/click. The click issue search for choice alias/synonym turned up only #2796 (Choice normalization), #2210 (EnumChoice, closed) and unrelated items. The web search found no Choice alias feature in click. click-extra's alias support is the nearest thing but is not the same shape.",
+      "searches": [
+        "https://github.com/pallets/click/issues?q=Choice+aliases",
+        "click Choice type aliases map alternate values to canonical choice python",
+        "https://kdeldycke.github.io/click-extra/types.html",
+        "https://github.com/pallets/click/issues?q=choice+alias+OR+synonym"
+      ],
+      "evidence": [
+        {
+          "url": "https://kdeldycke.github.io/click-extra/types.html",
+          "finding": "EnumChoice supports aliases on names and values, with show_aliases for help. It is an Enum-specific type, so not a drop-in for Choice(aliases=...)."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues?q=choice+alias+OR+synonym",
+          "finding": "No issue or PR is about choice aliases. Only #2796, #2210 and unrelated items matched."
+        }
+      ]
+    },
+    "intrange-step-grid": {
+      "slug": "intrange-step-grid",
+      "verdict": "novel",
+      "closest_existing": "Nothing found. Click's IntRange has min, max, open bounds and clamp, and the docs suggest a custom ParamType or callback for multiple-of checks. click-extra's types page documents no step.",
+      "reasoning": "The click issue searches for 'IntRange step' and 'IntRange multiple' found no step request. The nearest matches were #2679 (hide range in help) and PR #2084. The web search found no step support in click or click-params. Grep of repo/src/click for 'step=' found no matches.",
+      "searches": [
+        "https://github.com/pallets/click/issues?q=IntRange+step",
+        "python click IntRange step multiple of option type",
+        "https://github.com/pallets/click/issues?q=IntRange+multiple",
+        "https://kdeldycke.github.io/click-extra/types.html"
+      ],
+      "evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=IntRange+multiple",
+          "finding": "Closest result is #2679 (hide IntRange range in help). No multiple-of or step request."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues?q=IntRange+step",
+          "finding": "Only PR #2084 (count help) matched. It is not about step."
+        }
+      ]
+    },
+    "custom-boolean-states": {
+      "slug": "custom-boolean-states",
+      "verdict": "novel",
+      "closest_existing": "hpcflow's BoolOrString is a separate custom Click type with true_strings and false_strings arguments. It is not part of click's BoolParamType or Option, and it does not cover the envvar path for non-bool flags. I only saw it in a search snippet and did not open the page.",
+      "reasoning": "The click issue searches for bool_states and for boolean/envvar showed only related envvar-parsing issues (#3285, #1605, #1023 and others). None asks for configurable true/false vocabularies. The web search found no click or add-on feature of this kind. Grep of repo/src/click for 'true_values' found no matches.",
+      "searches": [
+        "https://github.com/pallets/click/issues?q=bool_states",
+        "click BoolParamType custom true false values localized option",
+        "https://github.com/pallets/click/issues?q=boolean+true+false+values+envvar",
+        "https://kdeldycke.github.io/click-extra/types.html"
+      ],
+      "evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=boolean+true+false+values+envvar",
+          "finding": "Only related envvar-parsing issues and PRs (#3285, #3030, #2956, #2952, #1605, #1023). None requests configurable vocabularies."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues?q=bool_states",
+          "finding": "No results for bool_states."
+        }
+      ]
+    },
+    "prompt-attempt-limit": {
+      "slug": "prompt-attempt-limit",
+      "verdict": "novel",
+      "closest_existing": "Other prompt libraries have attempt limits: PyInputPlus 'limit', askr 'max_attempts' and valid8r 'retry'. None is click, and none integrates with click.prompt, confirm or Option prompts. These came from search snippets only.",
+      "reasoning": "The click issue searches for prompt max attempts and for retry/attempts/abort found no request for an attempt limit. The nearest hits were #2044 (Abort in a prompt) and #2403. The workaround is a manual loop. Grep of repo/src/click for 'max_attempts' found no matches.",
+      "searches": [
+        "https://github.com/pallets/click/issues?q=prompt+max+attempts",
+        "click.prompt limit number of retries max attempts invalid input",
+        "https://github.com/pallets/click/issues?q=prompt+retry+OR+attempts+OR+abort+invalid"
+      ],
+      "evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=prompt+max+attempts",
+          "finding": "No results matched."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues?q=prompt+retry+OR+attempts+OR+abort+invalid",
+          "finding": "Only #2044, #2403 and #1364 matched. None is about limiting attempts."
+        }
+      ]
+    },
+    "style-presets-registry": {
+      "slug": "style-presets-registry",
+      "verdict": "novel",
+      "closest_existing": "No click or add-on equivalent found. The only named style registry I saw is the Rust crate farben-core, which is unrelated to click. I did not check rich-click, cloup or click-help-colors.",
+      "reasoning": "The click issue searches for style presets and for style/theme/preset/named secho returned only unrelated items. The web search found no click named-style registry. Grep of repo/src/click for 'register_style' found no matches.",
+      "searches": [
+        "https://github.com/pallets/click/issues?q=style+presets+named+styles",
+        "click register named style preset secho reusable styles",
+        "https://github.com/pallets/click/issues?q=style+theme+OR+preset+OR+named+secho"
+      ],
+      "evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=style+presets+named+styles",
+          "finding": "No results matched."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues?q=style+theme+OR+preset+OR+named+secho",
+          "finding": "All 11 results were unrelated (docs, dependency bumps, CliRunner)."
+        }
+      ]
+    },
+    "help-text-list-formatting": {
+      "slug": "help-text-list-formatting",
+      "verdict": "novel",
+      "closest_existing": "Only the '\\b' marker (no wrapping). Issue #1218 asked for list reflow and was declined. Cloup's formatting docs do not mention list layout.",
+      "reasoning": "Grep of repo/src found no format_lists. Issue #1218 'Better control of reflowing for lists' was closed in 2019. davidism said he did not want to add parsing to the formatter and suggested overriding the formatter instead. No merged PR or open issue proposes an opt-in list mode. The PR search for list help text formatting returned only unrelated PRs. The Cloup formatting page showed nothing on list layout. rich-click only turned up in general search and I did not open its docs.",
+      "searches": [
+        "click python help text bullet list formatting wrap hanging indent \\b",
+        "https://github.com/pallets/click/issues?q=help+text+list+wrap+bullet",
+        "https://github.com/pallets/click/issues/1218",
+        "https://cloup.readthedocs.io/en/latest/pages/formatting.html",
+        "https://github.com/pallets/click/pulls?q=list+help+text+formatting",
+        "https://github.com/pallets/click/issues?q=is%3Aissue+markdown+list+help+rewrap"
+      ],
+      "evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues/1218",
+          "finding": "Closed as completed on Feb 9, 2019. Maintainer declined formatter list parsing. No list feature merged."
+        },
+        {
+          "url": "https://cloup.readthedocs.io/en/latest/pages/formatting.html",
+          "finding": "No mention of bullet or numbered list formatting."
+        },
+        {
+          "url": "https://github.com/pallets/click/pulls?q=list+help+text+formatting",
+          "finding": "Only unrelated PRs, all closed."
+        }
+      ]
+    },
+    "option-repeat-policy": {
+      "slug": "option-repeat-policy",
+      "verdict": "novel",
+      "closest_existing": "Click's last-wins behavior, plus the multiple=True-then-raise BadOptionUsage workaround from issue #955. No library offers a per-option on_repeat policy.",
+      "reasoning": "Grep found no on_repeat in repo/src. Issue #955 (2018) and #2340 (closed not planned, 2022) both asked for an error on repeats and were declined. The maintainer said last-wins is intended so that env vars and aliases can be overridden. Discussion #2631 asks again for an error on repeats. The search snippet showed no replies, and I did not open the page. Nothing was implemented anywhere I looked. This is not a PR or an issue, so I do not count it as in_progress. The 'first' and 'error' modes with per-object tracking appear nowhere in the pages I opened. This is a design that maintainers have rejected twice, which is a risk for upstream acceptance, but the feature is not present.",
+      "searches": [
+        "click option repeated twice error \"cannot be given more than once\" python click option on_repeat",
+        "https://github.com/pallets/click/issues?q=option+specified+multiple+times+error+last+wins",
+        "https://github.com/pallets/click/pulls?q=repeated+option+error",
+        "https://lightrun.com/answers/pallets-click-add-feature-to-forbid-option-be-passed-multiple-times",
+        "github pallets click \"forbid option be passed multiple times\" issue",
+        "https://github.com/pallets/click/issues?q=is%3Aissue+option+more+than+once",
+        "https://github.com/pallets/click/issues/2340",
+        "https://github.com/pallets/click/issues/955"
+      ],
+      "evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues/955",
+          "finding": "Closed May 2018. Declined. An opt-in allow_repeat flag was suggested but not added. The workaround is multiple=True plus BadOptionUsage."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues/2340",
+          "finding": "Closed as not planned in Aug 2022. Maintainer said overriding is intended. No code change."
+        },
+        {
+          "url": "https://www.github.com/pallets/click/discussions/2631",
+          "finding": "Open discussion asking for an error when multiple is false and repeats are received. The search snippet showed no replies. I did not open the page."
+        }
+      ]
+    },
+    "clirunner-prompt-transcript": {
+      "slug": "clirunner-prompt-transcript",
+      "verdict": "novel",
+      "closest_existing": "Result.output, which holds the mixed prompt text and echoed input. consolekit has testing helpers, but I did not open its docs and so cannot say what they cover.",
+      "reasoning": "Grep found no PromptRecord or input_exhausted in repo/src. The issue search for CliRunner input and prompt returned 11 closed items. Titles such as #2043 'Tests with multiple stdin inputs' and #666 'CliRunner and multiple inputs' relate to input handling. I did not open them, so I cannot say what was decided. None of the titles indicate a prompt transcript. The docs search found no transcript feature. Click's testing docs describe only echoed output. PR #1820 concerns echo_stdin, which is a different feature.",
+      "searches": [
+        "CliRunner prompts transcript record prompts input list click testing",
+        "https://github.com/pallets/click/issues?q=CliRunner+prompt+input+list",
+        "https://github.com/pallets/click/issues?q=CliRunner+prompts+record",
+        "https://github.com/pallets/click/issues?q=is%3Aissue+CliRunner+input+prompt"
+      ],
+      "evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=is%3Aissue+CliRunner+input+prompt",
+          "finding": "11 closed issues. Titles include #2043 and #666 on multiple inputs. None mention a prompt transcript. I did not open them."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues?q=CliRunner+prompts+record",
+          "finding": "Only PR #1820, a merged fix for echo_stdin."
+        }
+      ]
+    },
+    "fuzzy-completion-fallback": {
+      "slug": "fuzzy-completion-fallback",
+      "verdict": "novel",
+      "closest_existing": "click-didyoumean and click-fuzzy suggest or resolve typos at command-resolution time, not in Tab completion. Typer's resolution suggestions work the same way. prompt_toolkit has a fuzzy completer, but it is not Click shell completion.",
+      "reasoning": "Grep found no complete_fuzzy in repo/src. Issue #2142 'Autocompletion to not filter options on initial segment' is closed. I did not open it, so I cannot say whether it overlaps. The searches for completion suggest typo and for fuzzy completion found nothing else in pallets/click. The ecosystem hits (click-didyoumean, click-fuzzy, Typer) work after the command is run. None wrap shell_complete with a difflib fallback.",
+      "searches": [
+        "click shell completion fuzzy match typo subcommand difflib completion",
+        "https://github.com/pallets/click/issues?q=fuzzy+completion",
+        "https://github.com/pallets/click/issues?q=completion+suggest+typo+did+you+mean"
+      ],
+      "evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=fuzzy+completion",
+          "finding": "Only #2142, closed Nov 2021. I did not open it."
+        },
+        {
+          "url": "https://pypi.org/project/click-fuzzy",
+          "finding": "Listed in search results only, with the snippet 'Fuzzy command matching and aliases for click'. It resolves typos when the command runs, not at completion. I did not open the page."
+        }
+      ]
+    },
+    "accumulate-multi-sources": {
+      "slug": "accumulate-multi-sources",
+      "verdict": "novel",
+      "closest_existing": "Click's single-source precedence (command line, then envvar, then default_map, then default). Custom consume_value overrides are the current workaround. click-extra config_option fills default_map, but I could not confirm any merging.",
+      "reasoning": "Grep found no accumulate in repo/src. Issue searches for merge, combine, envvar, default_map and multiple returned zero matching issues. The only hit was PR #3742, titled 'AI junk' and closed, and I did not read it. The web search found nothing that appends values across sources for multiple=True. The click-extra fetch failed, so I could not check its docs. The Typer item was a hand-written merge in a tutorial.",
+      "searches": [
+        "click multiple option merge default_map envvar and command line values combine",
+        "https://github.com/pallets/click/issues?q=multiple+envvar+default_map+merge",
+        "https://github.com/pallets/click/issues?q=multiple+default_map+envvar+combine",
+        "https://pypi.org/project/click-extra/",
+        "typer OR click-extra OR cloup merge multiple option values from config file and command line append instead of override"
+      ],
+      "evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=multiple+default_map+envvar+combine",
+          "finding": "0 results."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues?q=multiple+envvar+default_map+merge",
+          "finding": "Only PR #3742, 'AI junk', closed and rejected. Not relevant."
+        }
+      ]
+    }
+  },
+  "difficulty": {
+    "multiple-occurrence-limits": {
+      "slug": "multiple-occurrence-limits",
+      "score": 2,
+      "interacting_rules": 3,
+      "confirmed_traps": [
+        "Empty-tuple shape: Parameter.process_value turns UNSET into () for multiple (src/click/core.py:2658-2660), and value_is_missing treats () as missing (2635). A min check that ignores this reports 'at least 1 values but got 0' on a non-required option.",
+        "Source gating: the source is recorded with ctx.set_parameter_source before process_value (core.py:2791), so ctx.get_parameter_source(self.name) inside process_value correctly separates DEFAULT from DEFAULT_MAP. The spec tells the solver which sources to check.",
+        "Ordering against MissingParameter: the required check is at core.py:2664-2665. The occurrence check has to sit after it and before the callback block (2667).",
+        "Missed edge: Option.prompt_for_value calls process_value through value_proc (core.py:3551) while still inside consume_value, before the source is set (2786 runs before 2791). A get_parameter_source read there returns None or a stale value."
+      ],
+      "rejected_traps": [
+        "Counting raw strings with nargs=2: after type_cast_value (core.py:2617-2618) the value is already a tuple of tuples, so len(value) is correct without extra work.",
+        "'Check after callback': the spec says exactly where the check goes, and the obvious insertion point is before the callback anyway.",
+        "Resilient parsing swallowing: handle_parse_result already catches every exception from process_value when ctx.resilient_parsing is set (core.py:2810-2818), so this needs no code."
+      ],
+      "integration_depth": "One file. Option.__init__ and _validate get the new kwargs (core.py:3178; note the whole method is skipped when __debug__ is off). One check in Parameter.process_value or Option.process_value (2640/3683). A help item in get_help_extra and get_help_record (3404-3415, 3491-3504). One key in to_info_dict (3200-3220). Each piece is local.",
+      "survives_explicit_spec": false,
+      "likely_failure_mode": "Running the min check on the empty tuple of a non-required option, or putting the help item in the wrong place relative to 'range' and 'required'. Both disappear once the spec states them.",
+      "hardening": "Shell completion must stop offering a multiple=True option's names once the command line already has max_occurrences values for it. This extends the existing filter at core.py:1434-1441, which only hides non-multiple options already given on the command line, and has to read the partially parsed value count under resilient_parsing.",
+      "reasoning": "Each rule maps to one obvious line of code at one obvious place. Source information is already there before process_value. Type conversion already gives occurrence-shaped tuples. Resilient parsing is already handled. The only real interaction is required/empty/min, and the spec spells it out."
+    },
+    "option-default-from-param": {
+      "slug": "option-default-from-param",
+      "score": 4,
+      "interacting_rules": 6,
+      "confirmed_traps": [
+        "Order dependence: Command.parse_args processes parameters in iter_params_for_processing order (core.py:1374, 147-171), so ctx.params[ref] may not exist yet when this option is processed. A deferred pass or a dependency-ordered pass is required.",
+        "The first pass already runs process_value with the option's own default. That calls the callback (core.py:2667-2698) and raises MissingParameter for required options (2664-2665) before any deferred resolution. A naive 'override afterwards' calls the callback twice or fails early on required options.",
+        "Envvar and default_map must win: consume_value returns ENVIRONMENT or DEFAULT_MAP (core.py:2541-2556). The resolver has to check the recorded source rather than whether a value exists.",
+        "Resolution has to happen before the UNSET-to-None conversion (core.py:1383-1385), or a failed referenced value under resilient parsing has to be read as None. A referenced parameter that failed is stored as UNSET (2818).",
+        "Casting with this option's type: the borrowed value has to go through process_value or type_cast_value for this option, inside augment_usage_errors with this param, so the BadParameter names this option.",
+        "Missed: feature-switch slot arbitration (core.py:2820-2843) means several Options can share a name. The deferred write has to respect which option won the slot and keep source DEFAULT.",
+        "Cycle and unknown-name detection 'when the command parses' is a separate graph check over get_params."
+      ],
+      "rejected_traps": [],
+      "integration_depth": "Command.parse_args gets a new deferred pass with transitive chain resolution and cycle detection. Parameter.handle_parse_result and process_value need a way to skip or postpone required checks and callbacks for default_from options in the first pass. Option.get_help_extra (3464-3489) needs a new default-display branch that looks up another parameter's help spec or metavar. Option.__init__, _validate and to_info_dict also change. Several code paths have to agree on when the callback runs and which source is recorded.",
+      "survives_explicit_spec": true,
+      "likely_failure_mode": "The solver resolves in a post-pass but still lets the first pass run process_value on the plain default. The callback then fires twice, or a required default_from option raises MissingParameter before it can borrow. A second likely error is overriding a value that came from ENVIRONMENT or DEFAULT_MAP.",
+      "hardening": "",
+      "reasoning": "Even with every rule written down, the solver has to restructure parameter processing. Callback-once semantics, the required check, source precedence, resilient-parsing fallback, transitive chains and slot arbitration all meet in the same restructured loop. A small model will likely get at least one of them wrong."
+    },
+    "deprecated-option-spellings": {
+      "slug": "deprecated-option-spellings",
+      "score": 4,
+      "interacting_rules": 5,
+      "confirmed_traps": [
+        "The parser does not record which spelling was typed: _Option.process only stores into state.opts[dest] and state.order (parser.py:169-182), and parse_args returns only (opts, largs, order) (parser.py:298-314). A side channel through _match_long_opt and _match_short_opt (363-428) plus Command.parse_args (core.py:1372) is needed.",
+        "Suggestions come straight from self._long_opt (parser.py:367). A deprecated spelling registered there shows up in 'Did you mean'. Filtering is required.",
+        "Completion uses param.opts and param.secondary_opts (core.py:1447), and the duplicate-opts check uses param.opts (core.py:1113, 1189). Adding the spelling to self.opts leaks it into help, completion and those checks.",
+        "Option-level deprecation is printed in handle_parse_result (core.py:2794-2807). Suppressing the spelling message when deprecated=True requires the two to coordinate there.",
+        "add_to_parser has three add_option branches (core.py:3336-3365): bool flag with secondary opts, other flags with flag_activation_value, and value options. The deprecated spelling has to be registered correctly in each, acting as the primary (const=True) form for bool flags.",
+        "Missed: opts are normalized by _normalize_opt with token_normalize_func (parser.py:282, 397, 479), so the recorded spelling is the normalized form. Short-opt clusters (-abc) also have to record spellings.",
+        "Missed: shell_completion.py:688 checks `last_option in param.opts`. Value completion after a deprecated spelling will not work unless that check is updated."
+      ],
+      "rejected_traps": [],
+      "integration_depth": "Two modules. In parser.py: add_option, the long- and short-option matchers, NoSuchOption possibilities and the returned state. In core.py: Option.__init__ and its validation, add_to_parser across three branches, Command.parse_args (passing spellings to the ctx), handle_parse_result (warning de-duplication and precedence), to_info_dict, and possibly shell_completion. Changes must stay consistent across the parser and core boundary.",
+      "survives_explicit_spec": true,
+      "likely_failure_mode": "The solver warns based on the COMMANDLINE source (which also warns for --color), or registers the spelling in _long_opt without filtering suggestions. Another likely error is misregistering for bool flags with secondary opts, so --colour stores False or the wrong const.",
+      "hardening": "",
+      "reasoning": "The spec states each rule clearly, but meeting them takes a new data flow from the parser to the context and filtering in three separate consumers (suggestions, help, completion). It also takes coordination with existing deprecation messaging and correct handling of every add_to_parser branch. Several code paths have to change consistently."
+    },
+    "chain-usage-constraints": {
+      "slug": "chain-usage-constraints",
+      "score": 2,
+      "interacting_rules": 3,
+      "confirmed_traps": [
+        "Normalized names: resolve_command returns cmd_name after token_normalize_func only when the raw lookup fails (core.py:2091-2100). Using cmd_name from resolve_command, not args[0], is the fix, and the spec says so.",
+        "Unlisted commands between listed ones and non-decreasing order (equal positions allowed) are real rules, but each is a one-line condition."
+      ],
+      "rejected_traps": [
+        "'Validating inside the invocation loop': Group.invoke already builds every sub-context in a separate loop (core.py:2069-2080) before any subcommand is invoked (2082-2085). Checking in the build loop is the natural choice and already satisfies 'before any subcommand callback'.",
+        "CommandCollection needs separate work: it inherits Group.invoke and resolve_command, so resolved names are handled automatically.",
+        "Group callback output appearing before the error: super().invoke(ctx) already runs at core.py:2063 before the build loop."
+      ],
+      "integration_depth": "Group.__init__ validation and counting/order tracking inside the chain build loop at core.py:2069-2080. One function, one loop.",
+      "survives_explicit_spec": false,
+      "likely_failure_mode": "Picking the wrong 'conflicting' command in the order message when more than one earlier listed command has a higher position (for example, picking the first one seen instead of the highest). That only goes wrong if the spec leaves it unclear.",
+      "hardening": "Chained-group shell completion (core.py:1451-1459, _complete_visible_commands) must leave out subcommands that would violate chain_max_uses or chain_order, given the subcommands already on the command line. Completion contexts are built under resilient_parsing, so the solver has to rebuild the resolved-name history there and share the constraint logic with Group.invoke.",
+      "reasoning": "Everything happens in one loop that already runs before any subcommand. Counting and a non-decreasing order check with a left-to-right first-error rule are simple once written down. The main claimed trap (validating during invocation) does not apply, because the build and invoke loops are already separate."
+    },
+    "report-all-missing-params": {
+      "slug": "report-all-missing-params",
+      "score": 3,
+      "interacting_rules": 5,
+      "confirmed_traps": [
+        "Declaration order versus processing order: parse_args walks iter_params_for_processing (core.py:1374), which sorts by command-line position and eagerness (147-171). The collected list has to be re-sorted by get_params order.",
+        "A single missing parameter has to re-raise the original exception unchanged. Its format_message appends type.get_missing_message (exceptions.py:200-208), for example Choice's 'Choose from:'.",
+        "Wording ('options', 'arguments' or 'parameters') depends on param_type_name across all collected parameters.",
+        "MissingParameter propagates out of handle_parse_result before the slot write at core.py:2837-2840. The caller has to set ctx.params[name]=None itself, and a callback for a later parameter can see UNSET or None for it.",
+        "A non-missing BadParameter must propagate immediately. The except clause has to catch exactly MissingParameter. MissingParameter subclasses BadParameter (exceptions.py:159), so catching BadParameter first is wrong."
+      ],
+      "rejected_traps": [
+        "--help still works: eager parameters are processed first (core.py:169), and help raises Exit, not MissingParameter, so this needs no special code.",
+        "Raising before the extra-args check: it falls out naturally if the raise comes right after the loop, before core.py:1387."
+      ],
+      "integration_depth": "Command.parse_args loop (core.py:1374-1394). MissingParameter gets a params attribute, an aggregated format_message and __str__ (exceptions.py:173-229). Context.__init__ gets the inherited setting. Two files, but most changes are local.",
+      "survives_explicit_spec": false,
+      "likely_failure_mode": "Building the aggregated message for the single-missing case, which drops the Choice suffix, or listing hints in processing order instead of declaration order.",
+      "hardening": "When report_all_missing is enabled, options with prompt=True are not prompted for if any non-prompting required parameter is missing. The aggregated error is raised first, so the user is not prompted and then given an error. This interacts with Option.consume_value's prompt branch (core.py:3672-3679), which runs inside the same processing loop.",
+      "reasoning": "The rules are mostly independent and each is clearly specified: collect, sort by declaration, choose wording, pass a single error through unchanged, let other errors propagate immediately. The real traps are processing order versus declaration order, and keeping the single-error output unchanged. Both are easy to follow once written down, though a small model may still slip on one."
+    },
+    "choice-aliases": {
+      "slug": "choice-aliases",
+      "score": 2,
+      "interacting_rules": 3,
+      "confirmed_traps": [
+        "Alias leakage into metavar/errors/'Choose from' is real only if the solver merges aliases into _normalized_mapping, which get_metavar (types.py:433-435), get_missing_message (450-452) and get_invalid_choice_message (485) all use. A separate alias dict avoids it naturally.",
+        "Completion fallback rule (aliases only when no canonical match) is a real conditional to add to shell_complete (types.py:508-515); note existing completion uses .lower() not casefold, so alias completion should mirror that.",
+        "Aliases must be normalized at convert time with the runtime ctx (token_normalize_func), not only at construction with ctx=None; precomputing a normalized alias dict in __init__ silently ignores token_normalize_func.",
+        "Construction-time collision checks (alias vs canonical, alias vs alias, target not in choices) are three separate ValueError rules."
+      ],
+      "rejected_traps": [
+        "Returning the normalized string instead of the Enum member: alias values ARE the choice objects (Mapping[str,_ValueT_co]), so returning self.aliases[key] returns the member trivially; existing convert already returns `original` (types.py:466-470).",
+        "Case folding alias keys: normalize_choice (types.py:406-424) already casefolds any value; calling it on alias keys handles it automatically.",
+        "Canonical-wins precedence falls out of 'try canonical first' which the spec states directly."
+      ],
+      "integration_depth": "Single file, single class: __init__, convert, shell_complete, to_info_dict in src/click/types.py. Message/metavar paths need no change if aliases are kept out of _normalized_mapping.",
+      "survives_explicit_spec": false,
+      "likely_failure_mode": "Precomputing normalized alias keys in __init__ with ctx=None so token_normalize_func is ignored at runtime, or returning aliases in completion alongside canonical matches.",
+      "hardening": "Add show_aliases: bool = False; when true, get_missing_message and the invalid-choice message render each canonical choice followed by its aliases in declaration order, e.g. \"'development' (dev, d)\", while get_metavar and the prompt choice list stay canonical-only, and completion items for aliases carry help='alias for development'.",
+      "reasoning": "Each rule maps to one obvious code location and the existing normalize_choice does the heavy lifting. Most claimed traps disappear with the natural separate-dict design. The only real subtlety is runtime vs construction normalization."
+    },
+    "intrange-step-grid": {
+      "slug": "intrange-step-grid",
+      "score": 3,
+      "interacting_rules": 5,
+      "confirmed_traps": [
+        "Clamp above max to off-grid max: existing IntRange._clamp (types.py:761-765) returns bound or bound\u00b11, so reusing it gives 10 instead of 9 for IntRange(0,10,step=3,clamp=True).",
+        "Open-min clamp must be min+step, not existing min+1 (types.py:765).",
+        "Anchor = max when min is None: IntRange(max=10, step=3) accepts 7 \u2014 easy to anchor at 0 instead.",
+        "Missed trap: _NumberRangeBase.to_info_dict (types.py:656-664) is shared with FloatRange; adding 'step' there breaks tests/test_info_dict.py:142-152 which asserts FloatRange's exact dict without 'step'. Likewise __init__ is in the base and FloatRange overrides __init__ (types.py:794-807).",
+        "Missed trap: _describe_range is also used for help via Option.get_help_extra (core.py:3496); the '(step 5)' suffix must appear there and in repr but the out-of-range error message also uses _describe_range (types.py:690-691), so the step suffix will appear in range errors too \u2014 spec must say whether that's intended.",
+        "Empty-grid detection at construction with open bounds requires the same grid-floor/ceil math as clamping."
+      ],
+      "rejected_traps": [
+        "Out-of-range precedence over off-grid: the existing convert (types.py:681-695) already handles range first; appending the grid check after it gives the right precedence naturally.",
+        "Count option suppression (core.py:3493-3494) checks min==0 and max None; with step None nothing changes, not a real trap."
+      ],
+      "integration_depth": "src/click/types.py only: IntRange.__init__/_clamp, _NumberRangeBase.convert, _describe_range, to_info_dict, __repr__; help flows via core.py:3496 without edits. Must avoid polluting FloatRange through shared base.",
+      "survives_explicit_spec": true,
+      "likely_failure_mode": "Clamping to the bound (or bound\u00b11 for open) without snapping to the grid, or computing the largest grid point <= max but forgetting to step back once more when max_open and max is on-grid.",
+      "hardening": "With clamp=True, in-range off-grid values also snap to the nearest grid point, ties resolved toward the anchor, and if the nearest point violates an open bound it moves one step inward.",
+      "reasoning": "Grid arithmetic combined with open bounds, anchor selection and clamping is genuinely error-prone even when specified, and the shared base class creates a cross-class regression trap. Still one file, and precedence is free."
+    },
+    "custom-boolean-states": {
+      "slug": "custom-boolean-states",
+      "score": 3,
+      "interacting_rules": 5,
+      "confirmed_traps": [
+        "value_from_envvar for non-bool flags calls the static types.BoolParamType.str_to_bool (core.py:3611), so changing only the type misses this path.",
+        "Replacing both sides when one is given: defaults live in one combined dict (types.py:822-837), so splitting into true/false defaults is required.",
+        "Mutating class-level bool_states would leak; the convert error message lists self.bool_states (types.py:878) and must use the instance vocabulary.",
+        "Missed trap: '' maps to False only via the default dict entry (types.py:836); if false_values replaces the false side, a naive implementation drops '' unless explicitly re-added, contradicting 'empty maps to False unless in true_values'.",
+        "Missed trap: _pick_type returns self.type immediately when type_arg is not None (core.py:3129-3130) and BoolParamType() for bool flags (core.py:3139-3140); the TypeError rules (non-flag, explicit type=) must be placed in __init__ after is_flag is resolved, and the non-bool flag needs the vocabulary stored on the Option since its type is not BoolParamType (core.py:3142)."
+      ],
+      "rejected_traps": [
+        "Configured 'SI' matching ' Si ' is a straightforward strip().lower() on both sides; low risk once specified.",
+        "flag_value exact-match precedence already exists (core.py:3609-3610) and is preserved if the solver only swaps the str_to_bool call."
+      ],
+      "integration_depth": "Two files: types.py (BoolParamType __init__/to_bool/convert/error message) and core.py (Option.__init__ validation, _pick_type for bool flags, value_from_envvar non-bool path). is_bool_flag (core.py:3067) depends on type being BoolParamType, so a custom BoolParamType instance keeps prompt/confirm behavior.",
+      "survives_explicit_spec": true,
+      "likely_failure_mode": "Implementing the per-instance vocabulary in BoolParamType but leaving value_from_envvar on the static str_to_bool for non-bool flags, or dropping the '' \u2192 False mapping when false_values is supplied.",
+      "hardening": "Add Context(bool_true_values=..., bool_false_values=...) inherited by child contexts; BoolParamType.convert with no instance vocabulary consults ctx, Option-level values override the context, and value_from_envvar for non-bool flags follows the same precedence.",
+      "reasoning": "There is real two-path consistency (type vs Option envvar path), a defaults-splitting subtlety, and validation ordering in Option.__init__. Each piece is clear once written down, but several of them must line up."
+    },
+    "prompt-attempt-limit": {
+      "slug": "prompt-attempt-limit",
+      "score": 2,
+      "interacting_rules": 3,
+      "confirmed_traps": [
+        "Bool-flag prompt goes through confirm() (core.py:3534) separately from prompt() (core.py:3542-3553), so forwarding is needed on both calls.",
+        "The final 'Error: ...' line must precede the limit message; placing the check before echo (termui.py:275) skips it.",
+        "confirm's unrecognized branch (termui.py:339-341) is the only place to count there."
+      ],
+      "rejected_traps": [
+        "Counting empty re-prompts: empty input with no default loops in the inner `while True` (termui.py:261-270); a counter in the outer loop (at the except at 273-276 and the mismatch at 286) never sees them. The natural implementation is correct.",
+        "Confirmation mismatch counted twice: the mismatch path (termui.py:279-286) is a single outer-loop iteration; counting at the mismatch echo counts once naturally.",
+        "Empty input taking default then failing conversion counts: it reaches value_proc via the same path as typed input, so it is counted naturally."
+      ],
+      "integration_depth": "termui.prompt and termui.confirm (two counter sites in prompt, one in confirm), plus Option.__init__ storage and two call sites in Option.prompt_for_value. Abort \u2192 'Aborted!' handling already exists in main.",
+      "survives_explicit_spec": false,
+      "likely_failure_mode": "Forgetting to forward prompt_max_attempts on the confirm() bool-flag path, or raising before echoing the last error.",
+      "hardening": "Add Context(prompt_max_attempts=...) inherited by subcontexts; Option.prompt_max_attempts=None inherits the context value, 0 explicitly means unlimited overriding the context, and the remaining-attempts count is appended to each error ('Error: ... (2 attempts left)') except the last.",
+      "reasoning": "The loop structure in prompt() already separates empty re-prompts from conversion failures, so most traps are avoided by the obvious placement. The remaining work is plumbing to two call sites."
+    },
+    "style-presets-registry": {
+      "slug": "style-presets-registry",
+      "score": 2,
+      "interacting_rules": 3,
+      "confirmed_traps": [
+        "Registration-time color validation: must call _interpret_color (termui.py:616-638) in register_style, and with bg offset 10.",
+        "Rejecting 'reset'/'preset' and unknown keys in register_style with TypeError."
+      ],
+      "rejected_traps": [
+        "Emission order: style() emits in fixed order (termui.py:740-761); merging presets into the local keyword variables before that code makes order automatic. Only a solver who builds a separate bits list from the merged dict would fail.",
+        "Explicit None not overriding: style's own semantics already treat None as 'not set' (termui.py:740-761); 'if local is None: use preset value' is the obvious merge.",
+        "secho preset handling: secho forwards **styles to style (termui.py:808-809) and already skips bytes, so no change is needed."
+      ],
+      "integration_depth": "termui.py: a module-level registry, register/unregister, a preset-merge prologue in style(); re-exports in click/__init__.py. secho needs no change.",
+      "survives_explicit_spec": false,
+      "likely_failure_mode": "Forgetting to validate bg colors with offset or forgetting the __init__.py re-export; otherwise straightforward.",
+      "hardening": "Allow register_style(name, base='other', **styles) where base is resolved at style() call time (so re-registering the base changes derived presets), with derived keys overriding base keys and a ValueError on cyclic bases.",
+      "reasoning": "Merging into style()'s existing parameters gives correct ordering and None semantics for free. Rules are independent validations plus a dict merge."
+    },
+    "help-text-list-formatting": {
+      "slug": "help-text-list-formatting",
+      "score": 3,
+      "interacting_rules": 5,
+      "confirmed_traps": [
+        "Detection only on the paragraph's first line. Today wrap_text (src/click/formatting.py:87-97) lstrips only the first line of a paragraph and joins the rest with ' ' in _flush_par (line 84). The list check has to go inside _flush_par or the paragraph tuple, with the '\\b' check (line 81) running first.",
+        "Widest-marker continuation indent plus right-padding of shorter numbered markers. This is a cross-item rule within one paragraph, so markers must be collected before any item is wrapped.",
+        "Keeping the paragraph indent. Each item has to be wrapped inside wrapper.extra_indent(' ' * indent) (lines 100-105), with the marker added on top of the existing initial_indent/subsequent_indent. Building a fresh TextWrapper drops HelpFormatter.current_indent.",
+        "'--flag' and '-x' are not markers. A loose startswith('-') check gets this wrong.",
+        "Missed: continuation lines after the first keep their own leading whitespace, because only the first line is lstripped (lines 92-96). A marker check on non-first lines must lstrip them, otherwise an indented '  - b' is missed or the marker is detected inconsistently.",
+        "Missed: the plumbing runs through two code paths. write_text (line 213) and write_dl (line 262) each call wrap_text separately, and write_dl wraps without indents and re-indents the lines afterwards. Context.make_formatter (core.py:638) must pass the setting, and Context.__init__ must inherit it from the parent, which show_default does not do (core.py:508)."
+      ],
+      "rejected_traps": [
+        "The ANSI/term_len guarantee is not a trap. TextWrapper already measures with term_len (src/click/_textwrap.py:103-109) and extra_indent works unchanged."
+      ],
+      "integration_depth": "Mostly local to wrap_text in formatting.py. Also needs a flag on HelpFormatter that write_text and write_dl both pass on, plus inheriting the Context attribute and passing it in make_formatter. Three files' worth of small plumbing and one algorithmic core.",
+      "survives_explicit_spec": true,
+      "likely_failure_mode": "Indenting continuation lines by each item's own marker width, or forgetting to pad '9.' to the width of '10.'. A close second is checking markers on raw continuation lines without lstrip, or forgetting format_lists in write_dl.",
+      "hardening": "Nested items: inside a list paragraph, a marker line indented more than the first marker starts a sub-item. It gets its own widest-marker hanging indent, computed over its sibling group only, and its continuations align under the sub-item's text.",
+      "reasoning": "There is a real algorithm, with per-paragraph widest-marker computation, padding, indent composition with extra_indent, and '\\b' precedence. Each rule is clear once written down, though, and the whole thing lives in one function. Several independent formatting rules plus one or two genuine alignment traps."
+    },
+    "option-repeat-policy": {
+      "slug": "option-repeat-policy",
+      "score": 3,
+      "interacting_rules": 5,
+      "confirmed_traps": [
+        "Tracking by object, not by dest or spelling. Option.add_to_parser registers bool secondary opts as a second _Option that shares obj=self (core.py:3336-3346). Feature switches are separate Option objects sharing dest=self.name. So the key must be _Option.obj, and there is a ready handle for it (parser.py:163, 182).",
+        "Naming the second spelling. _Option.process(value, state) (parser.py:169) does not receive the spelling used, so the check must go in both _match_long_opt (parser.py:363-388) and _match_short_opt (390-421), or process must take the opt as a new argument. Doing it in process and naming obj.opts[0] gives the wrong message for '--env a -e b'.",
+        "'first' for a store_const bool with secondary opts must skip the second write. A plain 'if dest in state.opts' check is wrong, because feature switches share the dest.",
+        "Missed: two parser paths must stay consistent, the long path and the short-cluster path ('-ee' style clusters, and attached values in -eVALUE).",
+        "Missed: under resilient_parsing, raising the BadOptionUsage aborts _process_args_for_options midway (parse_args swallows at parser.py:308-313), so later tokens are never parsed. Raise-and-swallow drops the rest of the command line during completion. Whether that is acceptable or the error must be skipped under resilient_parsing is a real ambiguity.",
+        "Missed: the spelling passed to _match_long_opt is already normalized by token_normalize_func (parser.py:479), and for '--env=b' it is the part before '='."
+      ],
+      "rejected_traps": [
+        "The 'error before --help' ordering needs no work. Parse errors already fire inside parse_args, before eager parameters are processed."
+      ],
+      "integration_depth": "parser.py (_ParsingState gains per-object tracking, plus two match paths or the process signature) and core.py (Option.__init__ validation, add_to_parser passing the policy, to_info_dict). Moderate.",
+      "survives_explicit_spec": true,
+      "likely_failure_mode": "Putting the check in _Option.process without the occurrence's spelling, which names the wrong option in the error. Or keying on dest, which flags --upper/--lower feature switches as repeats.",
+      "hardening": "Under resilient_parsing, the 'error' policy must not stop parsing. It keeps the first value and goes on parsing later tokens, so completion still sees the parameter sources of options after the repeat. This forces the check to be conditional rather than raise-and-swallow.",
+      "reasoning": "Several real interactions: object identity versus shared dest, secondary opts sharing one obj, two parser match paths, and the spelling needed for the message. A careful spec names all of them, and each one is a local fix. One solid trap (where the spelling is available) and one ambiguity (resilient parsing)."
+    },
+    "clirunner-prompt-transcript": {
+      "slug": "clirunner-prompt-transcript",
+      "score": 2,
+      "interacting_rules": 3,
+      "confirmed_traps": [
+        "Hidden answers must be stored as None. Simple once hidden_input (testing.py:485-491) is wrapped.",
+        "On EOF, record before re-raising. Both hooks turn StopIteration into EOFError (testing.py:478-479, 489-491), so the append has to happen in the except branch.",
+        "A list input needs a trailing '\\n'. make_input_stream (testing.py:211-228) has to be extended or the input pre-normalized in invoke, and newline-containing elements validated before the command runs.",
+        "Missed: isolation() yields a fixed 3-tuple, and Result is built in invoke, so the records list has to be passed from isolation to invoke some other way (an attribute or closure). That is a small design hurdle."
+      ],
+      "rejected_traps": [
+        "A confirmation_prompt producing two records is automatic, because termui calls the hook twice. No implementation work is needed.",
+        "ANSI stripping versus color needs no work. _readline_prompt strips before calling func (termui.py:99-100), so the hook already receives the right text.",
+        "err=True needs no work. _readline_prompt only redirects stdout (termui.py:102-104), and the hook receives the same text."
+      ],
+      "integration_depth": "Confined to testing.py: wrap two hook closures, normalize input, add Result fields. termui is not touched.",
+      "survives_explicit_spec": false,
+      "likely_failure_mode": "Forgetting to record the EOF prompt before raising, or not passing the records to Result when the command exits early or raises.",
+      "hardening": "Each PromptRecord gains accepted: bool, which is False when the answer was rejected by type conversion, by the value_proc, or by a confirmation mismatch. That status is only known later in termui.prompt, so the hook's record must be updated after validation, which crosses from testing.py into termui.",
+      "reasoning": "Most of the claimed traps resolve themselves once you see that termui already calls the hook per prompt with stripped text. What is left is wrapping two functions and normalizing the input."
+    },
+    "fuzzy-completion-fallback": {
+      "slug": "fuzzy-completion-fallback",
+      "score": 2,
+      "interacting_rules": 3,
+      "confirmed_traps": [
+        "The seed must keep the non-alphanumeric prefix. Command.shell_complete lists options only when incomplete[0] is not alphanumeric (core.py:1432).",
+        "Keep difflib's order rather than sorting, and dedupe by value keeping the first occurrence.",
+        "Missed: Choice.shell_complete is case-insensitive when case_sensitive=False (types.py:509-513), but get_close_matches is case-sensitive. Mismatched casing gives odd results unless the spec addresses it."
+      ],
+      "rejected_traps": [
+        "The path/file trap is moot. Path.shell_complete always returns [CompletionItem(incomplete, type='file')] (types.py:1043), so the result is never empty and the fallback never triggers for path parameters. Dropping file/dir items is a one-line filter.",
+        "Hidden/already-given filtering is inherited for free from Command.shell_complete (core.py:1436-1441)."
+      ],
+      "integration_depth": "A wrapper in ShellComplete.get_completions (shell_completion.py:353-365), which already has ctx and obj, plus a Context setting inherited from the parent. No change to the candidate generators.",
+      "survives_explicit_spec": false,
+      "likely_failure_mode": "Calling obj.shell_complete(ctx, '') for option typos, or forgetting to inherit complete_fuzzy from the parent context.",
+      "hardening": "When incomplete matches a command or option alias resolved by token_normalize_func, or Choice with case_sensitive=False, the comparison must use the normalized or casefolded forms while returning original values. This makes the fuzzy match consistent with each object's own matching rules.",
+      "reasoning": "The spec gives the algorithm step by step in one function, with all inputs available. The only real trap is the seed, and the spec states it outright."
+    },
+    "accumulate-multi-sources": {
+      "slug": "accumulate-multi-sources",
+      "score": 3,
+      "interacting_rules": 5,
+      "confirmed_traps": [
+        "The first-source-wins short-circuit in Parameter.consume_value (core.py:2541-2562) must be bypassed for accumulate options while keeping the declared default as a fallback only.",
+        "Source must be the most explicit contributor (COMMANDLINE). The source also feeds the deprecation check (core.py:2794-2798) and the feature-switch arbitration (2822-2835).",
+        "A default_map string for multiple nargs=1 must become a single item. Today it would hit _check_iter and fail with 'Value must be an iterable.' (core.py:2199-2204, 2583-2585), so this is new wrapping logic, not reuse.",
+        "Missed: envvar splitting lives in Option.value_from_envvar (core.py:3616-3623) and batches pairs for nargs>1. Default_map pairs come in as-is. CLI values arrive as a list of strings or tuples from 'append'. Concatenating mixed list/tuple shapes is fiddly.",
+        "Missed: an empty CLI contribution (UNSET) versus an empty default_map list. Whether `default_map={'inc': []}` counts as contributing decides between falling back to `default` and source DEFAULT_MAP. ctx._default_map_has (core.py:2549) treats a present key as set."
+      ],
+      "rejected_traps": [
+        "The empty envvar is not a trap. resolve_envvar_value already returns None for '' (core.py:2733, 3574).",
+        "Prompt and flag interactions are excluded by the construction-time TypeError."
+      ],
+      "integration_depth": "core.py only: Option.__init__ validation, an override of Option.consume_value or Parameter.consume_value, and to_info_dict. Reuses value_from_envvar and lookup_default.",
+      "survives_explicit_spec": true,
+      "likely_failure_mode": "Running the default_map string through split_envvar_value, or passing it through raw so it fails as non-iterable. Or reporting the source of the first contributing source instead of the most explicit one.",
+      "hardening": "Combine accumulate with nested contexts: a subcommand's default_map entry inherited from the parent's default_map (via Context.lookup_default), plus auto_envvar_prefix. The envvar contribution must come from the first non-empty of the explicit envvar list and then the auto envvar, never both.",
+      "reasoning": "Four sources with distinct shape rules, precedence-for-source but reverse order for concatenation, and a fallback-only default. The traps are real, though one function holds all of it and the spec lists them."
+    }
+  },
+  "value": {
+    "multiple-occurrence-limits": {
+      "slug": "multiple-occurrence-limits",
+      "score": 2,
+      "who_benefits": "Authors of CLIs with multiple=True options that need a count bound (e.g. 2-4 --node). It is a niche need, and a one-line length check in a callback or the command body covers it.",
+      "user_evidence": [
+        {
+          "url": "https://cloup.readthedocs.io/en/latest/pages/constraints.html",
+          "finding": "Cloup (a Click add-on) has constraints such as AcceptBetween(min, max). The snippet I saw counts how many parameters are set, and I did not confirm whether it counts values inside one multiple option. This shows a demand for constraints, not for this feature."
+        }
+      ],
+      "fits_library": false,
+      "contrived_rules": [
+        "Values from the parameter's own `default` (source DEFAULT) are never checked, but DEFAULT_MAP values are",
+        "Zero occurrences on a non-required option never triggers the min check, even with min_occurrences=1",
+        "Help text 'occurrences: 2-4' placed after the range item and before 'required'"
+      ],
+      "reasoning": "The issue search for 'multiple min max occurrences' returned 0 results. I found no Click issue or discussion asking for it. A web search turned up only a workaround of checking the tuple length yourself. The proposal's own problem statement is weak: a callback can use get_parameter_source, and a bound check does not need the source split. The DEFAULT-versus-DEFAULT_MAP distinction exists mainly to make the task harder. Click generally leaves cross-value validation to callbacks and add-ons like Cloup. min_occurrences=1 that never fires on a non-required option is surprising.",
+      "searches": [
+        "click python multiple=True option minimum maximum number of values validation",
+        "https://github.com/pallets/click/issues?q=multiple+min+max+occurrences",
+        "https://lightrun.com/answers/pallets-click-add-feature-to-forbid-option-be-passed-multiple-times"
+      ]
+    },
+    "option-default-from-param": {
+      "slug": "option-default-from-param",
+      "score": 2,
+      "who_benefits": "Authors whose option defaults to another parameter (--output defaults to --input). The need is real but occasional. Most people handle it in the command body with `output = output or input`.",
+      "user_evidence": [
+        {
+          "url": "https://click.palletsprojects.com/advanced/",
+          "finding": "The docs show callbacks reading and writing ctx.params, and say callbacks run in command-line order. That is the ordering limit the proposal describes, and it is a documented limitation with a documented workaround."
+        },
+        {
+          "url": "https://dev.library.kiwix.org/content/stackoverflow_en_nopic_2021-08/questions/60639310/python-click-retrieve-other-arguments-during-callback",
+          "finding": "A Stack Overflow question about reading other arguments in a callback. It shows a related pain point, not a request for declarative defaults."
+        }
+      ],
+      "fits_library": false,
+      "contrived_rules": [
+        "If the referenced value is None, fall back to own default",
+        "Chains resolve transitively, and cycles raise TypeError at parse time",
+        "Combining default_from with prompt raises TypeError",
+        "Source stays DEFAULT even though the value is borrowed"
+      ],
+      "reasoning": "The issue search turned up no request for this. Issue #256, 'Control the evaluation order of parameter callbacks?', was closed, and I did not read what the maintainers said. PR #3370 about callable defaults was closed as 'rejected'. The feature adds a deferred resolution pass, transitive chains, cycle detection and help text to core parsing. Maintainers would likely see that as too much complexity for what a single line in the command function does.",
+      "searches": [
+        "pallets click default value from another option or argument",
+        "https://github.com/pallets/click/issues?q=default+depend+on+other+parameter",
+        "github pallets click issue option default value based on another option callback ctx.params order"
+      ]
+    },
+    "deprecated-option-spellings": {
+      "slug": "deprecated-option-spellings",
+      "score": 2,
+      "who_benefits": "Maintainers of published CLIs that rename flags (--colour to --color). This is a plausible and recurring real-world need, but I found no Click users asking for it.",
+      "user_evidence": [
+        {
+          "url": "https://oclif.io/docs/aliases",
+          "finding": "oclif supports deprecateAliases, which warns users of an alias. This shows other CLI frameworks offer the idea."
+        },
+        {
+          "url": "https://docs.rs/grex-cli/1.4.0/src/grex_cli/cli/deprecation.rs.html",
+          "finding": "A clap-based CLI implements the same warn-on-old-flag pattern by hand. This is evidence of the need elsewhere, not for Click."
+        }
+      ],
+      "fits_library": true,
+      "contrived_rules": [
+        "The replacement named is the first opt with a two-character prefix, else opts[0]",
+        "A deprecated spelling acts as the primary (True) form for bool flags with secondary opts",
+        "Option-level deprecation suppresses the spelling message"
+      ],
+      "reasoning": "The issue searches for 'deprecated option alias' and 'rename option deprecate old name' found no matching Click issue. The nearest was #1507 'Mark commands as deprecated', closed, which is about commands. Click already has deprecated=True for whole options, so extending it to single spellings fits the library's scope. Users can already add the old spelling as a hidden alias, but that gives no warning. Demand is plausible but I found no direct evidence. It also has the largest implementation surface, touching the parser, help, completion and suggestions.",
+      "searches": [
+        "click deprecate one option alias spelling rename option backward compatible warning",
+        "https://github.com/pallets/click/issues?q=deprecated+option+alias",
+        "https://github.com/pallets/click/issues?q=rename+option+deprecate+old+name"
+      ]
+    },
+    "chain-usage-constraints": {
+      "slug": "chain-usage-constraints",
+      "score": 1,
+      "who_benefits": "Authors of chain=True pipeline CLIs (the imagepipe-style example) who want 'load at most once' or an order. Chained groups are a niche, and constraints on top of them are rarer still.",
+      "user_evidence": [],
+      "fits_library": false,
+      "contrived_rules": [
+        "chain_order allows unlisted commands anywhere and only requires non-decreasing positions",
+        "When a max-uses violation and an order violation both exist, the one reached first is reported",
+        "Constraints must be checked before any subcommand callback but after the group callback"
+      ],
+      "reasoning": "The issue searches 'chain commands order constraint' and 'chain max once subcommand' both returned 0 results. A web search found only documentation of chain behavior and said that validation has to be done yourself in the group or result callback. I found no user request, blog or add-on for this gap. A Group subclass, or checking ctx.protected_args in the group callback, handles it today. Two new constructor parameters on Group for a niche mode look like feature creep.",
+      "searches": [
+        "click chain=True group restrict order of chained commands validate before execution",
+        "https://github.com/pallets/click/issues?q=chain+commands+order+constraint",
+        "https://github.com/pallets/click/issues?q=chain+max+once+subcommand"
+      ]
+    },
+    "report-all-missing-params": {
+      "slug": "report-all-missing-params",
+      "score": 2,
+      "who_benefits": "Users of CLIs with several required options or arguments. They would save a few re-runs. The need is common as an annoyance (argparse already lists all missing required arguments), but I found no Click-specific request.",
+      "user_evidence": [
+        {
+          "url": "https://kiwix.lema.org/stackoverflow.com_en_all_2023-11/questions/55874075/use-several-options-together-or-not-at-all",
+          "finding": "A Stack Overflow question on option dependencies. The answers point to Cloup constraints or a custom Option class, so it is related but not a request for aggregated missing-parameter errors."
+        }
+      ],
+      "fits_library": false,
+      "contrived_rules": [
+        "str(exc) returns 'Missing parameters: a, b', which differs from the formatted message",
+        "Per-type extra messages such as Choice 'Choose from:' are omitted in the aggregated form",
+        "A BadParameter discards any collected missing parameters"
+      ],
+      "reasoning": "The issue search for 'report all missing parameters' found nothing relevant. The web searches found only generic form-validation threads and a note that Click reports one missing parameter at a time. The goal is sensible UX, but the design is intrusive. It changes parse_args control flow, adds a new Context setting and a new MissingParameter shape, and has several special-case message rules. A maintainer would probably want it to be the default behavior or not exist, not an opt-in context flag. It is the most plausible of the five on user value, but I found no request for it.",
+      "searches": [
+        "click report all missing required options at once instead of first",
+        "https://github.com/pallets/click/issues?q=report+all+missing+parameters",
+        "click python show all missing required parameters at once MissingParameter multiple"
+      ]
+    },
+    "choice-aliases": {
+      "slug": "choice-aliases",
+      "score": 2,
+      "who_benefits": "CLI authors wanting 'dev' for 'development' or 'y' for an Enum member. They would hit this occasionally. Today they subclass Choice or use a callback.",
+      "user_evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=Choice+alias",
+          "finding": "Issue search showed no alias or synonym request. It showed only the merged PR #2796 (Choice normalization), the closed PR #2210 (EnumChoice) and #1411 (let a type customize the prompt)."
+        },
+        {
+          "url": "https://github.onedrive11.workers.dev/pallets/click/issues/591",
+          "finding": "Mirror of #591. According to the search summary, maintainers kept Choice as it is and suggested subclassing Choice.convert or using a callback. That is a mild signal against widening Choice."
+        },
+        {
+          "url": "https://lightrun.com/answers/pallets-click-allow-a-type-to-customize-the-prompt",
+          "finding": "Users wanted partial matching and prompt customization for Choice and wrote subclasses (NumericChoice). That is adjacent demand, not demand for aliases."
+        }
+      ],
+      "fits_library": true,
+      "contrived_rules": [
+        "\"Aliases are included only when NO canonical choice matches the prefix\" in shell_complete. This is a surprising special case with no obvious user need.",
+        "\"A token that exactly equals a canonical choice is never resolved through an alias\". This is a runtime collision rule for an edge case.",
+        "The ValueError rules for aliases that normalize the same as a canonical choice, or as each other, are validation detail. They are reasonable but elaborate."
+      ],
+      "reasoning": "I found no issue asking for Choice aliases. Click already has normalization hooks, and maintainers have pointed people to subclassing. Hiding aliases from help and completion is a design choice some users would dislike. The feature is plausible but has no demonstrated demand. The completion rule looks artificial.",
+      "searches": [
+        "pallets click Choice aliases alternate spellings issue",
+        "https://github.com/pallets/click/issues?q=Choice+alias",
+        "python click Choice option accept abbreviation or alias stackoverflow"
+      ]
+    },
+    "intrange-step-grid": {
+      "slug": "intrange-step-grid",
+      "score": 2,
+      "who_benefits": "Authors of options such as ports in steps of 10 or percentages in steps of 5. The need is rare, and a callback with value % n handles it.",
+      "user_evidence": [
+        {
+          "url": "https://www.github.com/pallets/click/issues/2679",
+          "finding": "This is only an adjacent request, to hide the IntRange range text in help. It is not a step request. It shows people care about the range help text."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues?q=IntRange+step",
+          "finding": "Issue search found no step or multiple-of request. The only hit was PR #2084 about count help."
+        },
+        {
+          "url": "https://click.palletsprojects.com/parameter-types/",
+          "finding": "IntRange documents min, max, min_open, max_open and clamp, with no step. I found no Stack Overflow thread asking for step."
+        }
+      ],
+      "fits_library": true,
+      "contrived_rules": [
+        "Clamp snapping to the 'smallest/largest grid point satisfying the bound'. It is logical, but clamp plus step is an interaction almost nobody needs.",
+        "The ValueError at construction for a range with no grid point (e.g. min=0, max=4, min_open=True, step=5) is an edge-case check.",
+        "\"Out-of-range takes precedence over off-grid\" is a precedence rule that is invented rather than requested.",
+        "The anchor rule (min, else max, else 0) is arbitrary. Anchoring on max is surprising."
+      ],
+      "reasoning": "No demand evidence was found. The usual answer is a callback. Step semantics (anchor choice, open bounds, clamp) add complexity to a small type, and FloatRange would be left inconsistent. The idea is natural but low-value for Click.",
+      "searches": [
+        "pallets click IntRange step multiple of feature request",
+        "https://github.com/pallets/click/issues?q=IntRange+step",
+        "python click option integer must be multiple of validate stackoverflow"
+      ]
+    },
+    "custom-boolean-states": {
+      "slug": "custom-boolean-states",
+      "score": 2,
+      "who_benefits": "Authors of localized CLIs ('si'/'no') or strict ones that accept only true/false in envvars. They would hit this rarely. A custom ParamType covers the plain bool case.",
+      "user_evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=bool_states",
+          "finding": "Issue search for bool_states returned 0 results, so no request exists."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues/1925",
+          "finding": "This is an unrelated bug about is_bool_flag and BoolParamType. It shows BoolParamType is entangled with flag logic, which makes the change riskier."
+        },
+        {
+          "url": "https://click.palletsprojects.com/parameter-types/",
+          "finding": "The docs say custom true/false words need a custom ParamType. I found no user complaint."
+        }
+      ],
+      "fits_library": true,
+      "contrived_rules": [
+        "\"The empty string maps to False unless '' appears in true_values\"",
+        "\"For a non-bool flag, an envvar value exactly equal to flag_value is still returned before boolean analysis, even if that string is also in false_values.\"",
+        "The TypeError when combined with an explicit type= or used on a non-flag option.",
+        "\"Bool flag prompts use confirm() (y/n) and ignore the custom vocabulary\". The result is inconsistent."
+      ],
+      "reasoning": "The source docstring does mark configuration as future work, but I found no user demand. The change touches Option.__init__ and value_from_envvar with many precedence rules. Prompts would still ignore the vocabulary, which is a flaw. Weak value for the complexity.",
+      "searches": [
+        "pallets click BoolParamType custom true false values bool_states issue",
+        "https://github.com/pallets/click/issues?q=bool_states",
+        "click boolean envvar custom accepted values \"true\" \"false\" only click option stackoverflow"
+      ]
+    },
+    "prompt-attempt-limit": {
+      "slug": "prompt-attempt-limit",
+      "score": 3,
+      "who_benefits": "Authors of interactive tools, including kiosk-style tools and scripts run on a TTY. They would use it to stop an endless re-prompt loop on invalid input. It is a moderately common concern, and other prompt libraries have it.",
+      "user_evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=prompt+attempts",
+          "finding": "Issue search found no request for a retry limit. It showed only #2044 (Abort and prompts), which is unrelated."
+        },
+        {
+          "url": "https://ddanggu.duckdns.org/.venv/lib/python3.10/site-packages/humanfriendly/prompts.py",
+          "finding": "humanfriendly.prompts has a MAX_ATTEMPTS setting that caps prompt retries. This is a similar feature in another library. It is not user demand for Click."
+        },
+        {
+          "url": "https://docs.rs/crate/ineed/latest/source/src/promptables/max_tries.rs",
+          "finding": "The Rust crate ineed has a max_tries prompt wrapper. Other prompt libraries offer this feature, but it is not evidence of demand for Click."
+        }
+      ],
+      "fits_library": true,
+      "contrived_rules": [
+        "\"Empty input that re-prompts because there is no default does NOT count. Empty input that takes the default and then fails conversion DOES count.\"",
+        "\"A mismatch counts once, not as two inputs.\" This is a counting nuance.",
+        "\"Both lines go to stderr when err=True\" and the double error line ('Error: ...' then 'Error: Too many invalid attempts (N).') are output details a real user might not insist on."
+      ],
+      "reasoning": "The need is real and generic, since an infinite loop is a hazard in non-attended use. A wrapper loop around prompt is awkward, though, because prompt owns the loop. I found no Click issue asking for it, and other libraries do offer it. The counting rules are overly specific. The core idea is sensible.",
+      "searches": [
+        "pallets click prompt max attempts retries limit issue",
+        "https://github.com/pallets/click/issues?q=prompt+attempts",
+        "click.prompt limit number of tries python stackoverflow"
+      ]
+    },
+    "style-presets-registry": {
+      "slug": "style-presets-registry",
+      "score": 2,
+      "who_benefits": "Applications that repeat style kwargs such as fg='red', bold=True. In practice they use functools.partial(secho, ...) or a dict of kwargs. The need is real but easy to work around.",
+      "user_evidence": [
+        {
+          "url": "https://py-flowlib.readthedocs.io/en/latest/_modules/flowtool/style.html",
+          "finding": "Seen only as a search result, not opened. The search summary says flowtool wraps click.style with functools.partial to build reusable styles. That is a workaround for the gap."
+        },
+        {
+          "url": "https://sources.debian.org/src/python-cloup/3.0.8-1/cloup/styling.py",
+          "finding": "Seen only as a search result. The cloup add-on provides its own styling layer on top of click.style. This suggests third-party libraries cover the need."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues?q=style+theme",
+          "finding": "Issue search returned nothing about named styles or themes. The hits were incidental."
+        }
+      ],
+      "fits_library": false,
+      "contrived_rules": [
+        "\"Explicit None means 'not specified' and leaves the preset value in place\"",
+        "\"The merged attributes are emitted in style()'s fixed order\"",
+        "Accepting a sequence of presets merged left to right.",
+        "A global mutable registry with register_style/unregister_style and \"unregister_style on an unknown name raises KeyError\"."
+      ],
+      "reasoning": "The workaround with a dict of kwargs or functools.partial is trivial. A global mutable registry adds shared state to a stateless helper. Click's maintainers favour a small API surface, and cloup already offers styling for those who want it. I found no issue asking for this.",
+      "searches": [
+        "pallets click named styles presets click.style reusable theme issue",
+        "https://github.com/pallets/click/issues?q=style+theme",
+        "python click reusable style functools.partial click.secho error_style stackoverflow"
+      ]
+    },
+    "help-text-list-formatting": {
+      "slug": "help-text-list-formatting",
+      "score": 2,
+      "who_benefits": "Authors of CLIs with long docstring help who want bullet or numbered lists that wrap with hanging indents. They currently use \\b, which disables wrapping. Many hit this, but it is a cosmetic need.",
+      "user_evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues/1218",
+          "finding": "Issue #1218 'Better control of reflowing for lists' asked for exactly this, with an offered implementation. davidism declined: help text is a plain string, list support would need a parser, it 'special cases only one type of formatting', and it would invite requests for other structures. He pointed to overriding the formatter or Command.format_help_text instead."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues?q=help+list+wrapping",
+          "finding": "The search lists #1218 (closed 2019) and #204 'Arbitrary text wraps in help text' (closed 2018). Both are about help wrapping and neither added list support."
+        }
+      ],
+      "fits_library": false,
+      "contrived_rules": [
+        "Lists are recognized only by the first line of a paragraph, so 'Use the - key\\n- not a list' stays plain text. This is defensible, but it is detection by heuristic.",
+        "Markers are limited to '- ', '* ' and '<digits>. '.",
+        "Shorter numeric markers are right-padded to the widest marker's width."
+      ],
+      "reasoning": "Real demand exists, but the maintainer explicitly declined the same feature in #1218 as out of scope because it needs a text parser and special-cases one format. This proposal is the same thing behind a flag. Context and HelpFormatter gain a format_lists parameter, which adds API surface for a narrow case. The maintainer-suggested route is to customize the formatter. I found no add-on or Stack Overflow thread showing a workaround other than \\b.",
+      "searches": [
+        "click python help text bullet list formatting \\b paragraph wrapping",
+        "https://github.com/pallets/click/issues?q=help+list+wrapping",
+        "https://github.com/pallets/click/issues/1218"
+      ]
+    },
+    "option-repeat-policy": {
+      "slug": "option-repeat-policy",
+      "score": 3,
+      "who_benefits": "Authors of CLIs with long command lines, such as scripts and CI invocations, where a repeated single-value option is probably a mistake. Some want first-wins semantics. The need is occasional.",
+      "user_evidence": [
+        {
+          "url": "https://lightrun.com/answers/pallets-click-add-feature-to-forbid-option-be-passed-multiple-times",
+          "finding": "Search result snippet only (I could not open the page; the fetch returned the Lightrun blog index). It shows a pallets/click issue 'add feature to forbid option be passed multiple times'. The workaround was multiple=True plus a length check raising BadOptionUsage."
+        },
+        {
+          "url": "https://www.github.com/pallets/click/discussions/2631",
+          "finding": "Search result snippet only (the page returned 404 when I fetched it). Discussion #2631 is titled 'Return an error when multiple is false and multiple options are received on the command line'. I could not see any answer."
+        },
+        {
+          "url": "https://github.com/clap-rs/clap/issues/976",
+          "finding": "Search result only, not opened. It suggests other CLI parsers such as clap have the same repeat-option behaviour, so the concern is general."
+        }
+      ],
+      "fits_library": true,
+      "contrived_rules": [
+        "'first' with a bool flag with secondary opts: '--no-shout --shout' must give False.",
+        "'--env a --env b --help' fails with the repeat error before help shows. This follows from parse-time errors but is surprising.",
+        "TypeError for on_repeat with multiple or count, and ValueError for unknown values. These are ordinary validation.",
+        "The 'first' policy adds little. The 'error' policy is the actual demand."
+      ],
+      "reasoning": "There is real, repeated demand: an issue and a discussion, with a known workaround that is clumsy (multiple=True and a manual length check). 'error' is the strongest use case. The 'first' mode has no evidence behind it. I could not read the maintainers' response to either thread, so I do not know whether it was declined. The design fits the parser, since an option-level flag is small and opt-in. Per-Option-object tracking is a real requirement because of flag pairs and feature switches.",
+      "searches": [
+        "python click error if option specified more than once non-multiple",
+        "click github issue option given twice last value wins raise error",
+        "https://github.com/pallets/click/issues?q=option+specified+multiple+times+last+wins",
+        "https://lightrun.com/answers/pallets-click-add-feature-to-forbid-option-be-passed-multiple-times",
+        "https://www.github.com/pallets/click/discussions/2631",
+        "https://github.com/pallets/click/discussions/2631"
+      ]
+    },
+    "clirunner-prompt-transcript": {
+      "slug": "clirunner-prompt-transcript",
+      "score": 3,
+      "who_benefits": "Developers writing tests for interactive Click commands with prompt, confirm or password options. They want to assert on prompts, order and answers rather than on mixed output text. Frequent among CLI test authors, though only a subset use interactive prompts.",
+      "user_evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues/2043",
+          "finding": "Issue #2043 'Tests with multiple stdin inputs': a user struggled to supply several answers through CliRunner input. It was closed by the author with a newline-joined string workaround, so it shows the input friction, not a request for list input."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues?q=CliRunner+prompt+input+test",
+          "finding": "The search shows several closed testing issues: #666 'CliRunner and multiple inputs', #2787 'CliRunner and click.prompt doesn't work for testing', and #2043. They show recurring confusion about multi-prompt input, but none requested a transcript API."
+        },
+        {
+          "url": "https://click.palletsprojects.com/en/8.1.x/testing/",
+          "finding": "The official docs (seen in search results) tell users to pass newline-separated input and assert on result.output. Prompts and echoed answers are interleaved, and hidden input is not echoed, so there is no structured way to check prompts."
+        }
+      ],
+      "fits_library": true,
+      "contrived_rules": [
+        "Hidden prompts always record answer None, which is defensible for secrets.",
+        "List elements containing '\\n' or '\\r' raise ValueError.",
+        "With color=True the raw styled prompt text is recorded, while with color off it is the stripped text."
+      ],
+      "reasoning": "The pain is real: multiple-prompt input comes up in #666, #2043 and #2787. But none of those asked for a transcript, and the pain is mainly input construction and hangs. The list-input half is the more evidenced half. The transcript half is nice-to-have. Both fit click.testing, which is the right place for it, and the change is additive. Demand is moderate. Some rules, such as the ValueError on embedded newlines and the color-dependent text, are fussy.",
+      "searches": [
+        "click CliRunner test prompts which prompts were shown input list stackoverflow",
+        "pallets click CliRunner invoke input multiple prompts testing github discussion",
+        "https://github.com/pallets/click/issues?q=CliRunner+prompt+input+test",
+        "https://github.com/pallets/click/issues/2043"
+      ]
+    },
+    "fuzzy-completion-fallback": {
+      "slug": "fuzzy-completion-fallback",
+      "score": 2,
+      "who_benefits": "Interactive shell users who mistype the start of a command or option. They would get 'did you mean' completions on Tab. Only users who opt in, and the gain is small, since a user who mistyped can just retype.",
+      "user_evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=shell+completion+fuzzy",
+          "finding": "No matching issues in pallets/click ('No results matched your search')."
+        },
+        {
+          "url": "https://pypi.org/project/click-fuzzy",
+          "finding": "Third-party click-fuzzy (seen in search results) does fuzzy subcommand matching and aliases for click groups, not shell completion. click-didyoumean is a similar add-on for typos at execution time. These show some interest in typo tolerance, but at execution time and not in Tab completion."
+        },
+        {
+          "url": "https://github-redirect.dependabot.com/spf13/cobra/pull/1282",
+          "finding": "Search result only, not opened. Cobra's fuzzy completion is delegated to the shell's matcher rather than done by the library. I found no feature request for typo-tolerant completion in Cobra either."
+        }
+      ],
+      "fits_library": false,
+      "contrived_rules": [
+        "seed is the leading run of non-alphanumeric characters of incomplete, used to regenerate candidates.",
+        "difflib cutoff=0.6 and n=3 are hardcoded.",
+        "The fallback runs only if there are zero prefix matches, so one prefix match suppresses closer fuzzy ones.",
+        "File and dir candidates are dropped."
+      ],
+      "reasoning": "There is no evidence of demand in Click's tracker. The related add-ons work at execution time, not completion. Shells already do their own matching in some cases, and shell completion returning non-prefix items can behave badly in bash and zsh, which filter by prefix themselves. If a shell filters by prefix, the suggestions may never appear. That undermines the feature. The hard-coded cutoff and seed trick are heuristics with no stated use case.",
+      "searches": [
+        "click shell completion fuzzy matching typo subcommand suggestions",
+        "cobra fuzzy completion typo \"completion\" fuzzy matching shell CLI feature request",
+        "https://github.com/pallets/click/issues?q=shell+completion+fuzzy"
+      ]
+    },
+    "accumulate-multi-sources": {
+      "slug": "accumulate-multi-sources",
+      "score": 2,
+      "who_benefits": "Authors of tools with config-file, environment and CLI sources for list-valued options such as includes, excludes and paths. Config-plus-CLI merging is a common pattern, but I found no direct Click request for it.",
+      "user_evidence": [
+        {
+          "url": "https://github.com/pallets/click/issues?q=multiple+default_map+envvar+merge",
+          "finding": "No relevant issues in the results. The only hit was an unrelated PR labeled 'rejected AI'."
+        },
+        {
+          "url": "https://github-redirect.dependabot.com/pallets/click/discussions/2297",
+          "finding": "Search result only, titled 'Multiple options mixing #2297'. The page returned 404 when I fetched it, so I could not read it and cannot say whether it is related."
+        },
+        {
+          "url": "https://github.com/pallets/click/issues/87",
+          "finding": "Search result only, not opened. Reportedly about envvar splitting for multiple options, not merging. Not evidence for this feature."
+        }
+      ],
+      "fits_library": false,
+      "contrived_rules": [
+        "default_map strings for nargs=1 are one item but envvar strings are split on whitespace.",
+        "The option's own default is never merged, only used if no source contributes.",
+        "The recorded ParameterSource is COMMANDLINE if any command-line value exists, even though other sources also contributed."
+      ],
+      "reasoning": "The need is plausible, and tools like click-extra implement config merging themselves. Click's model is one source wins, as a documented precedence order. Merging would break that model and make get_parameter_source ambiguous. The behaviour has special cases: different splitting for each source, and default handling. I found no issue or discussion asking for it, and the workaround is a custom consume_value or callback. A poor fit for core.",
+      "searches": [
+        "click multiple=True option combine config file default_map and command line values append",
+        "click multiple option envvar and command line values merge instead of override github issue",
+        "https://github.com/pallets/click/issues?q=multiple+default_map+envvar+merge",
+        "https://github.com/pallets/click/discussions/2297"
+      ]
+    }
+  }
+}

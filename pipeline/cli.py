@@ -2,7 +2,10 @@
 
 Usage:
     python -m pipeline.cli explore https://github.com/pallets/click --ref 8.5.1
-    python -m pipeline.cli propose <run_id> --n 5
+    python -m pipeline.cli demand <run_id>       # real user requests (web)
+    python -m pipeline.cli propose <run_id>      # candidate features designed from demand
+    python -m pipeline.cli validate <run_id>     # novelty + difficulty audit, then selection
+    python -m pipeline.cli spec <run_id>         # full specs, case tables, blind quiz
     python -m pipeline.cli ask <run_id> "Where are option defaults resolved?"
     python -m pipeline.cli generate --n 5
 """
@@ -52,16 +55,43 @@ def _print_run(run_dir: Path) -> int:
     return 0 if meta["status"] == "ok" else 1
 
 
-def cmd_propose(run_id: str, n: int) -> int:
-    """Design n features for an explored repository; writes features.json and features.md."""
-    from pipeline import explore, propose
+def _run_stage_cmd(coro_factory) -> int:
+    from pipeline import explore
 
     try:
-        run_dir = asyncio.run(propose.propose(run_id, n))
+        run_dir = asyncio.run(coro_factory())
     except explore.ExploreError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     return _print_run(run_dir)
+
+
+def cmd_demand(run_id: str) -> int:
+    """Mine real user requests for an explored repository; writes demand.json and demand.md."""
+    from pipeline import demand
+
+    return _run_stage_cmd(lambda: demand.mine(run_id))
+
+
+def cmd_propose(run_id: str, n: int) -> int:
+    """Propose n candidate features for an explored repository; writes candidates.json."""
+    from pipeline import propose
+
+    return _run_stage_cmd(lambda: propose.propose(run_id, n))
+
+
+def cmd_validate(run_id: str) -> int:
+    """Audit candidates for novelty and difficulty, then select; writes audit.json, selection.json, candidates.md."""
+    from pipeline import audit
+
+    return _run_stage_cmd(lambda: audit.validate_candidates(run_id))
+
+
+def cmd_spec(run_id: str) -> int:
+    """Write full specs and case tables for the selected features and quiz them; writes specs/ and features.md."""
+    from pipeline import spec
+
+    return _run_stage_cmd(lambda: spec.write_specs(run_id))
 
 
 def cmd_ask(run_id: str, question: str) -> int:
@@ -82,9 +112,15 @@ def build_parser() -> argparse.ArgumentParser:
     exp = sub.add_parser("explore", help="explore a GitHub repository and write a report")
     exp.add_argument("url", help="https://github.com/<owner>/<repo>")
     exp.add_argument("--ref", default=None, help="branch, tag or full commit SHA (default: default branch)")
-    pro = sub.add_parser("propose", help="design features for an explored repository")
+    dem = sub.add_parser("demand", help="mine real user requests (issues, discussions, Stack Overflow, add-ons)")
+    dem.add_argument("run_id")
+    pro = sub.add_parser("propose", help="propose candidate features from user demand (starts a new round if one exists)")
     pro.add_argument("run_id")
-    pro.add_argument("--n", type=int, default=5, help="number of features (default 5)")
+    pro.add_argument("--n", type=int, default=config.N_CANDIDATES, help=f"number of candidates (default {config.N_CANDIDATES})")
+    val = sub.add_parser("validate", help="audit candidates for novelty and difficulty, then select")
+    val.add_argument("run_id")
+    spc = sub.add_parser("spec", help="write full specs and case tables for the selected features, then quiz them")
+    spc.add_argument("run_id")
     ask = sub.add_parser("ask", help="ask a follow-up question about an explored repository")
     ask.add_argument("run_id")
     ask.add_argument("question")
@@ -102,6 +138,12 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_explore(args.url, args.ref)
     if args.command == "propose":
         return cmd_propose(args.run_id, args.n)
+    if args.command == "demand":
+        return cmd_demand(args.run_id)
+    if args.command == "validate":
+        return cmd_validate(args.run_id)
+    if args.command == "spec":
+        return cmd_spec(args.run_id)
     if args.command == "ask":
         return cmd_ask(args.run_id, args.question)
     if args.command == "generate":

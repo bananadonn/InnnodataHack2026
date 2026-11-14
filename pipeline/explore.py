@@ -489,8 +489,16 @@ def load_run(run_id: str) -> tuple[Path, dict[str, Any]]:
 
 
 def record_stage(meta: dict[str, Any], workspace: Path, res: StageResult) -> None:
-    """Store a stage's status and usage in run.json and refresh the running total."""
-    meta.setdefault("stages", {})[res.stage] = res.summary()
+    """Store a stage's status and usage in run.json and refresh the running total.
+
+    A re-run of a stage keeps the earlier entry under a numbered name, so no spend is lost from the total."""
+    stages = meta.setdefault("stages", {})
+    if res.stage in stages:
+        k = 1
+        while f"{res.stage} (earlier #{k})" in stages:
+            k += 1
+        stages[f"{res.stage} (earlier #{k})"] = stages.pop(res.stage)
+    stages[res.stage] = res.summary()
     meta["total_cost_usd"] = round(sum(s.get("total_cost_usd", 0.0) for s in meta["stages"].values()), 6)
     write_json(workspace / "run.json", meta)
     print(f"  [{res.stage}] {res.status}: {res.usage.get('num_turns')} turns, ${res.usage.get('total_cost_usd')}"
