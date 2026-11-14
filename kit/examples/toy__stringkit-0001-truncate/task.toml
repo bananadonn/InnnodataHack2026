@@ -1,0 +1,35 @@
+# TOY EXAMPLE — synthetic repo `toycorp/stringkit`, not a real upstream project.
+# The repo is embedded in environment/Dockerfile (nothing is cloned), so this package
+# is fully self-contained and needs no network. It exists to show the task FORMAT, the
+# solver's INPUT (instruction.md), the gold OUTPUT (solution/), and how grading works
+# (tests/). Do not submit this task — build your own on the supplied repos.
+[metadata]
+name = "toy__stringkit-0001-truncate"
+instance_id = "toy__stringkit-0001-truncate"
+task = "swe-feature-implementation"
+source_repo = "toycorp/stringkit"          # synthetic — illustrative only
+base_commit = "0000000000000000000000000000000000000000"  # toy: repo is embedded in the Dockerfile, no upstream sha
+license = "MIT"
+language = "en"
+programming_language = "python"
+
+[environment]
+docker_image = ""                           # empty → Harbor builds environment/Dockerfile
+build_timeout_sec = 3600.0
+cpus = 2
+workdir = "/app"
+memory_mb = 4096
+network_mode = "no-network"                 # "no-network" | "allowlist" | "public"  (NOT "none")
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+environment_mode = "shared"
+timeout_sec = 900.0
+
+# The two baselines ARE the validation protocol — Harbor runs them for you:
+[rollout_baseline.oracle]
+reward = 1.0                                 # gold (solution/) must score exactly 1.0
+[rollout_baseline.nop]
+reward = 0.0                                 # untouched base must score 0.0

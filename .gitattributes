@@ -1,0 +1,4 @@
+# Keep LF everywhere so bash scripts and Dockerfiles work in WSL2/containers
+# even when the repo is cloned on Windows (core.autocrlf would add CRLF).
+* text=auto eol=lf
+*.docx binary
