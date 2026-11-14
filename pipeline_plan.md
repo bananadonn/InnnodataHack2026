@@ -161,6 +161,74 @@ Important: `allowed_tools` controls automatic approval; it does **not** restrict
 - Whether dependency installation and test execution belong in the first demo.
 - Whether the first interface should be a CLI or an API consumed by a frontend.
 
+## How to Run
+
+The plan above is implemented in `pipeline/explore.py` (exploration), `pipeline/verify.py` (checking the agent's claims against the source), `pipeline/propose.py` (feature design) and `pipeline/agent.py` (shared agent runner).
+
+### Setup (once)
+
+```bash
+uv sync                    # installs claude-agent-sdk and the other pinned dependencies
+cp .env.example .env       # then put ANTHROPIC_API_KEY in .env (never commit it)
+```
+
+Requires `git` on the PATH and outbound internet access (GitHub clone, web research, the Anthropic API).
+
+### 1. Explore a repository
+
+```bash
+uv run python -m pipeline.cli explore https://github.com/pallets/click --ref 8.5.1
+```
+
+- `--ref` takes a branch, tag or full commit SHA. Omit it for the default branch.
+- Runs a map pass, then one deep dive per key module and an upstream novelty check in parallel, then verifies the results against the clone.
+- Prints the `run_id`, the status and cost of each stage, and the output folder.
+- On click 8.5.1 this took about 3.5 minutes and about $1.20 (SDK estimate).
+
+### 2. Design features from the report
+
+```bash
+uv run python -m pipeline.cli propose <run_id> --n 5
+```
+
+Reads the run's `report.json`, designs `n` features, and checks each one against the repository (files and named interfaces exist, solution and test files do not overlap). Failed checks are sent back to the agent for correction. About $0.40 on click.
+
+### 3. Ask a follow-up question
+
+```bash
+uv run python -m pipeline.cli ask <run_id> "Where are option defaults resolved?"
+```
+
+Resumes the exploration session in the same workspace. The answer is printed and appended to `qa.md`.
+
+### Output: `runs/<run_id>/`
+
+| File | Contents |
+| --- | --- |
+| `report.md` / `report.json` | The verified repository report: map, module cards, upstream findings, verification summary. |
+| `features.md` / `features.json` | The feature outlines (after `propose`). |
+| `run.json` | URL, ref, resolved commit SHA, per-stage status, token usage and cost, total cost. |
+| `events.jsonl` | Audit log of every assistant message, tool call and tool result. |
+| `map.json`, `claims/`, `upstream.json` | Raw agent output before verification. |
+| `qa.md` | Follow-up questions and answers. |
+| `repo/` | The clone. Gitignored; never committed. |
+
+### Configuration
+
+Models and limits are in `pipeline/config.py`:
+
+- `EXPLORE_MODEL`, `PROPOSE_MODEL`: currently `claude-sonnet-5-5`.
+- `MAP_MAX_BUDGET_USD`, `CARD_MAX_BUDGET_USD`, `UPSTREAM_MAX_BUDGET_USD`, `PROPOSE_MAX_BUDGET_USD`: cost cap per agent session.
+- `AGENT_MAX_TURNS`, `AGENT_WALL_TIMEOUT_SEC`, `AGENT_CONCURRENCY`, `DEEP_DIVE_MAX_MODULES`.
+
+### Differences from the plan above
+
+- Exploration is several agent sessions (map, per-module deep dives, upstream check), not one.
+- Feature design (`propose`) was added as a following stage.
+- Only public `https://github.com/<owner>/<repo>` URLs are accepted.
+- Claim verification parses Python only. For other languages the report is produced but interfaces are marked unverified.
+- Agents are read-only: file access is confined to the run workspace and shell access to read-only `git` inspection of the clone. No dependencies are installed and no repository code is executed.
+
 ## Official References
 
 - [Claude Agent SDK overview](https://code.claude.com/docs/en/agent-sdk/overview)
