@@ -1,0 +1,384 @@
+{
+  "path": "src/click/core.py",
+  "claim": {
+    "summary": "src/click/core.py holds Click's runtime model. Context carries per-invocation state: params, parameter sources, resources and cleanup. Command parses args and invokes the callback. Group, plus its CommandCollection subclass, dispatches to subcommands, including chain mode. Parameter, Option and Argument implement the value pipeline: parser value, then consume_value (env var, default_map, default, prompt), then type_cast_value, then process_value (required check, callback), then handle_parse_result. handle_parse_result also arbitrates when several params share one name. An internal UNSET sentinel is used throughout and is converted to None before the user sees it. ParameterSource is an IntEnum ordered from most to least explicit. Command.main wraps everything with exception-to-exit-code handling.",
+    "interfaces": [
+      {
+        "name": "ParameterSource",
+        "behavior": "IntEnum with members PROMPT, COMMANDLINE, ENVIRONMENT, DEFAULT_MAP, DEFAULT (enum.auto, so values 1..5). Lower means more explicit, so comparisons such as `source < ParameterSource.DEFAULT_MAP` mean 'explicitly provided'. handle_parse_result uses this ordering for deprecation warnings and for arbitration.",
+        "edge_cases": [
+          "Ordering was changed in 8.3.3 (IntEnum, reordered)"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Context.__init__",
+        "behavior": "Builds a context for a command. Stores parent, command, info_name, params={}, args=[] and further settings. Key args: obj, auto_envvar_prefix, default_map, terminal_width, max_content_width, resilient_parsing, allow_extra_args, allow_interspersed_args, ignore_unknown_options, help_option_names, token_normalize_func, color, show_default. Several of these are None by default so they can be inherited from the parent or from the command (not re-read in full).",
+        "edge_cases": [
+          "Settings default to None and are inherited from parent where applicable"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Context.scope",
+        "behavior": "Context manager that pushes the context onto the thread-local stack. With cleanup=False the context is not closed on exit. make_context uses it for parsing.",
+        "edge_cases": [
+          "cleanup=False skips close()"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Context.with_resource",
+        "behavior": "Enters the given context manager, registers its exit to run on ctx.close(), and returns the entered value.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "Context.call_on_close",
+        "behavior": "Registers a callback to run when the context closes. Returns the callback, so it can be used as a decorator.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "Context.lookup_default",
+        "behavior": "Looks up name in default_map. If call=True and the value is callable, it is called. Returns None if the name is absent.",
+        "edge_cases": [
+          "Callable defaults are invoked when call=True"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Context.find_object",
+        "behavior": "Walks up the parent chain and returns the first ctx.obj that is an instance of object_type, or None if there is none.",
+        "edge_cases": [
+          "Returns None when absent"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Context.ensure_object",
+        "behavior": "Calls find_object. If it returns None, creates object_type(), stores it in ctx.obj and returns it.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "Context.fail",
+        "behavior": "Raises UsageError(message, ctx).",
+        "edge_cases": [],
+        "raises": [
+          "UsageError"
+        ]
+      },
+      {
+        "name": "Context.exit",
+        "behavior": "Raises Exit(code), default 0. Context.abort raises Abort.",
+        "edge_cases": [],
+        "raises": [
+          "Exit"
+        ]
+      },
+      {
+        "name": "Context.invoke",
+        "behavior": "If the first argument is a Command, a sub-context is created. Every exposed param not in kwargs is filled from param.get_default (UNSET becomes None) and passed through type_cast_value. Then kwargs are recorded in ctx.params and the command's callback is called. If the first argument is a plain callable, it is called with the given args and kwargs. The call runs inside augment_usage_errors and the context.",
+        "edge_cases": [
+          "A command without a callback raises TypeError",
+          "Defaults are type-cast but required is not enforced"
+        ],
+        "raises": [
+          "TypeError"
+        ]
+      },
+      {
+        "name": "Context.forward",
+        "behavior": "Like invoke, but first copies all of the current ctx.params into kwargs for keys not already given. Only accepts Command objects.",
+        "edge_cases": [
+          "A non-Command argument raises TypeError"
+        ],
+        "raises": [
+          "TypeError"
+        ]
+      },
+      {
+        "name": "Context.get_parameter_source",
+        "behavior": "Returns the ParameterSource for a parameter name, or None if no source was recorded. Context.set_parameter_source sets it.",
+        "edge_cases": [
+          "Returns None when unrecorded"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Command.make_context",
+        "behavior": "Copies context_settings into extra without overriding explicit keys. Builds self.context_class(self, info_name=..., parent=..., **extra). Then runs self.parse_args(ctx, args) inside ctx.scope(cleanup=False) and returns the context without invoking the callback.",
+        "edge_cases": [
+          "Explicit **extra wins over context_settings"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Command.parse_args",
+        "behavior": "Raises NoArgsIsHelpError if there are no args, no_args_is_help is set and parsing is not resilient. Builds the parser and parses. For each param in iter_params_for_processing (eager params first, then in the order they were given on the command line) it calls handle_parse_result. Afterwards UNSET in ctx.params is converted to None. Leftover args cause ctx.fail('Got unexpected extra argument(s) (...)') unless allow_extra_args or resilient_parsing is set. Finally it sets ctx.args.",
+        "edge_cases": [
+          "resilient_parsing suppresses errors",
+          "UNSET is converted to None only after all params are processed"
+        ],
+        "raises": [
+          "NoArgsIsHelpError",
+          "UsageError"
+        ]
+      },
+      {
+        "name": "Command.invoke",
+        "behavior": "If the command is deprecated, echoes a red 'DeprecationWarning: The command ... is deprecated.' message to stderr. Then, if a callback exists, returns ctx.invoke(callback, **ctx.params). Returns None otherwise.",
+        "edge_cases": [
+          "No callback means None is returned"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Command.main",
+        "behavior": "Uses sys.argv[1:] when args is None, with Windows glob expansion when windows_expand_args is true. Otherwise uses list(args). Detects prog_name, handles shell completion via the _PROG_COMPLETE env var and exits early. Runs make_context and invoke inside the context. With standalone_mode=True it calls ctx.exit() and ends with sys.exit. Exit sets the exit code. Abort prints 'Aborted!' and exits 1. EOFError/KeyboardInterrupt also lead to 'Aborted!'. ClickException is shown via e.show with e.exit_code. OSError with errno EPIPE is silenced, anything else is re-raised. With standalone_mode=False it returns rv, or e.exit_code for Exit, and re-raises Abort and ClickException. EOFError/KeyboardInterrupt are re-raised as Abort. Command.__call__ is an alias.",
+        "edge_cases": [
+          "Exit in non-standalone mode returns the exit code, which is ambiguous with a return value",
+          "Chained commands can return [None, ...]"
+        ],
+        "raises": [
+          "Abort",
+          "ClickException"
+        ]
+      },
+      {
+        "name": "Group.add_command",
+        "behavior": "Registers cmd under name or cmd.name. Runs _check_nested_chain(register=True) and stores it in self.commands.",
+        "edge_cases": [
+          "No name raises TypeError"
+        ],
+        "raises": [
+          "TypeError"
+        ]
+      },
+      {
+        "name": "Group.command",
+        "behavior": "Decorator that creates a command via decorators.command and registers it with add_command. Works with or without parentheses. Uses command_class when cls is not passed.",
+        "edge_cases": [
+          "A bare callable together with kwargs triggers an AssertionError"
+        ],
+        "raises": [
+          "AssertionError"
+        ]
+      },
+      {
+        "name": "Group.result_callback",
+        "behavior": "Decorator that registers a result callback. It is called with (result, **ctx.params) after the subcommand runs. In chain mode the result is a list. replace=True allows replacing an existing callback.",
+        "edge_cases": [
+          "Not read in full; replace semantics inferred from the signature"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Group.invoke",
+        "behavior": "Without a subcommand: if invoke_without_command is set, runs the group callback and passes its return value to the result callback (an empty list in chain mode). Otherwise fails with 'Missing command.'. In non-chain mode it resolves the command, sets ctx.invoked_subcommand, runs the group callback, builds the sub-context and invokes it, then runs the result callback. In chain mode it sets invoked_subcommand to '*' (or None), runs the group callback, creates all sub-contexts (allow_extra_args=True, allow_interspersed_args=False) and then invokes them in order. The result callback receives the list of results.",
+        "edge_cases": [
+          "Group callback runs before the subcommand context is made",
+          "Chain contexts are all built before any runs"
+        ],
+        "raises": [
+          "UsageError"
+        ]
+      },
+      {
+        "name": "Group.resolve_command",
+        "behavior": "Calls get_command(ctx, name of args[0]). If not found and token_normalize_func is set, retries with the normalized name. If still not found and parsing is not resilient: when the token looks like an option it re-runs self.parse_args(ctx, args) so that --help and similar are handled by the group. Then it raises NoSuchCommand with command-name possibilities. Returns (name, cmd, args[1:]). Under resilient_parsing it returns (None, None, rest).",
+        "edge_cases": [
+          "Resilient parsing yields (None, None, ...)"
+        ],
+        "raises": [
+          "NoSuchCommand"
+        ]
+      },
+      {
+        "name": "CommandCollection.get_command",
+        "behavior": "Checks the group's own commands first, then each of the sources in order. In chain mode it validates nested chains. list_commands returns the sorted union of names. add_source appends a Group to sources.",
+        "edge_cases": [
+          "Source params and callbacks are not used",
+          "Own commands take precedence over sources"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Parameter.consume_value",
+        "behavior": "Value precedence: parser opts (COMMANDLINE), then envvar via value_from_envvar (ENVIRONMENT), then ctx.default_map via lookup_default (DEFAULT_MAP, including explicit None keys). A str from the default map is split via type.split_envvar_value when nargs != 1. Then get_default (DEFAULT). Returns (value, source), where value may be UNSET.",
+        "edge_cases": [
+          "An empty envvar string is treated as unset",
+          "A key explicitly present in default_map with a None value counts as set"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Parameter.type_cast_value",
+        "behavior": "None becomes () for multiple or nargs=-1, otherwise None passes through. nargs==1 or a composite type: calls self.type(value, param, ctx). nargs=-1: converts each item into a tuple. nargs>1: requires exactly nargs items and returns a tuple. multiple: wraps the above in a tuple over the items.",
+        "edge_cases": [
+          "A non-iterable raises 'Value must be an iterable.'",
+          "A wrong item count raises 'Takes N values but M were given.'"
+        ],
+        "raises": [
+          "BadParameter"
+        ]
+      },
+      {
+        "name": "Parameter.process_value",
+        "behavior": "UNSET becomes () for multiple or nargs=-1, otherwise it skips the cast. Otherwise calls type_cast_value. Then, if required and value_is_missing, raises MissingParameter. Then, if a callback is set, calls callback(ctx, param, value). UNSET is shown to the callback as None, and other UNSET params in ctx.params are temporarily masked as None.",
+        "edge_cases": [
+          "The callback return value replaces the value",
+          "Option.process_value gives an unset non-required bool flag the value False, without type-casting (callback still called)"
+        ],
+        "raises": [
+          "MissingParameter"
+        ]
+      },
+      {
+        "name": "Parameter.handle_parse_result",
+        "behavior": "Inside augment_usage_errors it calls consume_value, records the source, emits a deprecation warning to stderr if deprecated and explicitly set (source < DEFAULT_MAP), and calls process_value. In resilient_parsing mode, exceptions from process_value are swallowed and the value is reset to UNSET. When several params share a name, arbitration decides the winner: the more explicit source wins; on a tie the later one wins unless it would downgrade an explicit default. The winner writes ctx.params[name] if expose_value is true. Returns (value, args).",
+        "edge_cases": [
+          "expose_value=False params are not stored in ctx.params",
+          "Losers restore the previous source"
+        ],
+        "raises": [
+          "MissingParameter",
+          "BadParameter"
+        ]
+      },
+      {
+        "name": "Option.__init__",
+        "behavior": "Declares an option. It handles prompt (prompt=True derives text from the name), confirmation_prompt, prompt_required, hide_input, is_flag, flag_value (default UNSET), multiple, count (default 0 if unset), allow_from_autoenv, type, help, hidden, show_choices, show_envvar, show_default and deprecated. Flag kind is inferred in _infer_flag_kind and the type in _pick_type. It ends with a _validate step that raises on illegal combinations.",
+        "edge_cases": [
+          "prompt=True without a name raises TypeError",
+          "Setting flag_value implies is_flag"
+        ],
+        "raises": [
+          "TypeError"
+        ]
+      },
+      {
+        "name": "Option.consume_value",
+        "behavior": "Calls Parameter.consume_value. If the parser yields FLAG_NEEDS_VALUE, it prompts (source PROMPT) when prompt is set and parsing is not resilient. Otherwise it uses flag_activation_value with source COMMANDLINE. For multiple options it replaces FLAG_NEEDS_VALUE items with the activation value. If the value is unset (or from default/default_map) and prompt is set and (required or prompt_required), it prompts.",
+        "edge_cases": [
+          "Prompting is skipped under resilient_parsing"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Argument.__init__",
+        "behavior": "Positional parameter. If required is None, it is True when there is no default and nargs > 0 (default nargs is 1), and False when a default is given. A multiple kwarg raises TypeError. Exactly one decl is allowed, and the name is lowercased with '-' replaced by '_'. The metavar is upper-case, wrapped in [] if optional, and gets '...' when nargs != 1.",
+        "edge_cases": [
+          "Zero decls with expose_value=True raises TypeError",
+          "More than one decl raises TypeError"
+        ],
+        "raises": [
+          "TypeError"
+        ]
+      }
+    ],
+    "error_conventions": "Runtime user errors use the ClickException family. Context.fail raises UsageError. Missing values raise MissingParameter. Bad conversion or a wrong nargs count raises BadParameter. An unknown subcommand raises NoSuchCommand. Control flow uses Exit and Abort. NoArgsIsHelpError is raised when there are no args and no_args_is_help is set. Programmer errors (a bad param declaration, a missing callback, forward given a non-Command, a missing command name) raise TypeError with plain messages. Messages are wrapped in gettext `_()` / ngettext, with sentences ending in a period, such as 'Value must be an iterable.' and 'Takes {nargs} values but {len} were given.'. Some messages are not terminated, such as 'Got unexpected extra argument (x)'. Deprecation is reported as red text on stderr, 'DeprecationWarning: The ... is deprecated.', and does not use warnings.warn.",
+    "examples": [
+      {
+        "description": "ParameterSource comparison pattern from the docstring",
+        "code": "source = ctx.get_parameter_source(\"port\")\nif source < click.ParameterSource.DEFAULT_MAP:\n    ...  # value was explicitly set",
+        "source_path": "src/click/core.py",
+        "line_start": 186,
+        "line_end": 188
+      },
+      {
+        "description": "Group.command decorator registers a subcommand via add_command (not a test snippet; the implementation shows the usage)",
+        "code": "def decorator(f):\n    cmd = command(*args, **kwargs)(f)\n    self.add_command(cmd)\n    return cmd",
+        "source_path": "src/click/core.py",
+        "line_start": 1852,
+        "line_end": 1855
+      },
+      {
+        "description": "Group.invoke non-chain dispatch: resolve, then group callback, then sub-context",
+        "code": "cmd_name, cmd, args = self.resolve_command(ctx, args)\nctx.invoked_subcommand = cmd_name\nsuper().invoke(ctx)\nsub_ctx = cmd.make_context(cmd_name, args, parent=ctx)",
+        "source_path": "src/click/core.py",
+        "line_start": 2048,
+        "line_end": 2052
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_context.py",
+        "how_it_asserts": "Uses the runner fixture or direct Context objects. Checks ensure_object/find_object, ctx.meta, multiple enter, the global context, make_pass_meta_decorator, and that UNSET is hidden from callbacks. Plain asserts. I only listed its test names and did not read the other listed test files."
+      }
+    ],
+    "extension_points": [
+      {
+        "name": "Command.context_class / context_settings",
+        "path": "src/click/core.py",
+        "line": 1357,
+        "what_could_attach": "Subclass Context and set context_class, or set the context_settings dict. make_context applies both."
+      },
+      {
+        "name": "Parameter.callback",
+        "path": "src/click/core.py",
+        "line": 2677,
+        "what_could_attach": "Per-parameter callback(ctx, param, value) for validation or transformation. The returned value replaces the parameter's value."
+      },
+      {
+        "name": "Parameter.consume_value / type_cast_value / value_is_missing",
+        "path": "src/click/core.py",
+        "line": 2518,
+        "what_could_attach": "Subclass Option or Argument to add new value sources (a config file, for example) or custom casting. The public override points are type_cast_value and consume_value."
+      },
+      {
+        "name": "Group.get_command / list_commands",
+        "path": "src/click/core.py",
+        "line": 1959,
+        "what_could_attach": "Override for lazy or plugin-loaded subcommands. CommandCollection already uses this at line 2173."
+      },
+      {
+        "name": "Group.result_callback",
+        "path": "src/click/core.py",
+        "line": 1914,
+        "what_could_attach": "Post-processing of subcommand results, including chained pipelines."
+      },
+      {
+        "name": "Command.get_help_option / format_* methods",
+        "path": "src/click/core.py",
+        "line": 1193,
+        "what_could_attach": "Customize help rendering or the help option."
+      },
+      {
+        "name": "Command.shell_complete / Parameter.shell_complete",
+        "path": "src/click/core.py",
+        "line": 1416,
+        "what_could_attach": "Custom completions."
+      }
+    ],
+    "gaps": [
+      {
+        "description": "There is no built-in config-file value source between the environment and default_map. Users must populate default_map by hand.",
+        "why_plausible": "The precedence chain in consume_value already has a clear slot for it, and ParameterSource could gain a member.",
+        "nearest_existing": "Parameter.consume_value"
+      },
+      {
+        "description": "Deprecation output uses echo to stderr rather than warnings.warn, so it cannot be filtered or turned into an error.",
+        "why_plausible": "The deprecation logic is centralized in Command.invoke and Parameter.handle_parse_result.",
+        "nearest_existing": "Parameter.handle_parse_result"
+      },
+      {
+        "description": "There is no declarative cross-parameter validation, such as mutually exclusive or required-together options.",
+        "why_plausible": "handle_parse_result already arbitrates between same-name params, so a similar hook could validate groups.",
+        "nearest_existing": "Parameter.handle_parse_result"
+      },
+      {
+        "description": "Group.resolve_command does only exact matching and token normalization. It has no abbreviation or 'did you mean' resolution of its own beyond the possibilities passed to NoSuchCommand.",
+        "why_plausible": "get_command and resolve_command are the natural override points.",
+        "nearest_existing": "Group.resolve_command"
+      }
+    ],
+    "limitations": [
+      "I did not read the Context body (lines 213-520) or the Option help and prompt methods in full, nor Command.__init__ and Group.__init__.",
+      "I read only the test names in tests/test_context.py. The other listed test files were not opened.",
+      "The result_callback replace semantics are inferred from the signature.",
+      "Examples come from the source (docstring and implementation) rather than docs or test files."
+    ]
+  }
+}

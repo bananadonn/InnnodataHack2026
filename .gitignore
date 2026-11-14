@@ -20,3 +20,6 @@ __pycache__/
 # logs: ignored everywhere except under results/
 *.log
 !results/**/*.log
+
+# exploration runs: keep reports and logs, never the cloned repos
+/runs/*/repo/

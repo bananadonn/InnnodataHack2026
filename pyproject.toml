@@ -10,6 +10,7 @@ dependencies = [
     "pydantic",
     "tomli-w",
     "python-dotenv",
+    "claude-agent-sdk>=0.2.182",
 ]
 
 [tool.uv]

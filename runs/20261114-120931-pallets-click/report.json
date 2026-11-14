@@ -1,0 +1,638 @@
+{
+  "purpose": "Click is a BSD-3-Clause Python library for building composable command-line interfaces. It provides decorators and classes (Command, Group, Option, Argument) that parse argv, convert values through typed ParamType objects, dispatch to nested subcommands, render help, provide shell tab-completion, and offer terminal utilities (prompts, styled echo, progress bars, pagers) and a CliRunner for testing. The repo declares version 8.5.1 (pyproject.toml L3) and CHANGES.md L1-3 dates that release 2026-11-09.",
+  "intended_users": "Python developers writing command-line tools and scripts who want a decorator-based, composable CLI framework. Its tests and docs also serve maintainers and contributors (CONTRIBUTING via README L56-62, and the docs and typing tox envs in pyproject.toml).",
+  "languages": [
+    "Python (requires >=3.10, pyproject.toml L16)",
+    "Python type annotations (typed package; mypy strict and pyright configured, pyproject.toml L107-117)"
+  ],
+  "frameworks": [
+    "flit_core as build backend (pyproject.toml L62-64)",
+    "pytest for tests (pyproject.toml L83-91)",
+    "Sphinx with myst-parser and pallets-sphinx-themes for docs (pyproject.toml L31-37)",
+    "tox with tox-uv for multi-env runs (pyproject.toml L145-232)",
+    "ruff for lint and format (pyproject.toml L119-143)"
+  ],
+  "dependencies": [
+    "No runtime dependencies declared in [project] (pyproject.toml L1-23 shows none). Only build-system and dev/test/docs/typing dependency groups (pyproject.toml L25-60).",
+    "Dev/test groups: ruff, tox, tox-uv, pytest, pytest-randomly, pytest-xdist, mypy, pyright, pre-commit, sphinx stack. Lock file: uv.lock (present, not read)."
+  ],
+  "entry_points": [
+    {
+      "path": "src/click/__init__.py",
+      "description": "Public package API. Re-exports Command, Group, Option, Argument, Context, decorators (command, group, option, argument, pass_context, ...), exceptions, types (INT, Choice, Path, File, ...) and termui helpers (echo, prompt, confirm, progressbar, style, ...). Lazily warns on deprecated names via module __getattr__ (L76-144)."
+    },
+    {
+      "path": "src/click/core.py:1483",
+      "description": "Command.main(): the standard script entry point. Reads sys.argv (with Windows glob expansion), handles shell completion, builds the Context, invokes the command, and maps exceptions to exit codes (Command.main L1483-1617)."
+    },
+    {
+      "path": "src/click/core.py:1619",
+      "description": "Command._main_shell_completion(): checks the _<PROG>_COMPLETE environment variable and delegates to shell_completion.shell_complete, then exits (L1619-1649)."
+    },
+    {
+      "path": "src/click/decorators.py:168",
+      "description": "@click.command decorator: wraps a function into a Command, attaching options and arguments declared with @option and @argument (decorators.py L168-262; @argument L324, @option L352)."
+    },
+    {
+      "path": "src/click/decorators.py:293",
+      "description": "@click.group decorator: same as command but creates a Group (multi-command container) (decorators.py L293-313)."
+    },
+    {
+      "path": "src/click/testing.py:317",
+      "description": "CliRunner: in-process invocation for tests, with output and stdin capture (CliRunner L317-351, invoke L595)."
+    }
+  ],
+  "key_modules": [
+    {
+      "path": "src/click/core.py",
+      "role": "Core object model. Context (L213) holds per-invocation state and invoke/fail/exit. Command (L960) has make_context, parse_args, invoke, and main. Group (L1671) adds subcommand resolution, chaining, and invoke_without_command. Parameter (L2209) with Option (L2891) and Argument (L3698) handles value sourcing (consume_value L2518), type conversion (type_cast_value L2566), defaults and envvars (process_value L2640), and parse-result handling (handle_parse_result L2763). ParameterSource enum (L174).",
+      "public_interfaces": [
+        "Context",
+        "Command",
+        "Group",
+        "CommandCollection",
+        "Parameter",
+        "Option",
+        "Argument",
+        "ParameterSource",
+        "Command.main",
+        "Command.make_context",
+        "Command.parse_args",
+        "Command.invoke",
+        "Group.resolve_command",
+        "Group.get_command",
+        "Group.list_commands",
+        "Context.invoke",
+        "Context.lookup_default",
+        "Context.fail",
+        "Context.exit"
+      ]
+    },
+    {
+      "path": "src/click/parser.py",
+      "role": "Internal option parser modelled on optparse (_OptionParser L224). Tokenizes argv into option values, positional arguments, and an ordering list. It is wrapped by Command.make_parser and Command.parse_args. Deprecated as a public API (L237-238).",
+      "public_interfaces": [
+        "_OptionParser (deprecated, module __getattr__ at L503)",
+        "_OptionParser.parse_args (L298)"
+      ]
+    },
+    {
+      "path": "src/click/types.py",
+      "role": "Parameter type system. ParamType base (L65) with convert/fail. Concrete types: StringParamType (L304), Choice (L342), DateTime (L522), IntParamType/IntRange (L736/744), FloatParamType/FloatRange (L768/776), BoolParamType (L819), UUIDParameterType (L888), File (L915), Path (L1059), Tuple (L1258). convert_type (L1356) maps Python defaults to types.",
+      "public_interfaces": [
+        "ParamType",
+        "Choice",
+        "DateTime",
+        "File",
+        "FloatRange",
+        "IntRange",
+        "Path",
+        "Tuple",
+        "UUID",
+        "STRING",
+        "INT",
+        "FLOAT",
+        "BOOL",
+        "UNPROCESSED",
+        "convert_type"
+      ]
+    },
+    {
+      "path": "src/click/decorators.py",
+      "role": "Decorator-based API that builds Command, Group, Option, and Argument, plus helpers such as pass_context, pass_obj, make_pass_decorator, version_option, help_option, confirmation_option, and password_option.",
+      "public_interfaces": [
+        "command (L168)",
+        "group (L293)",
+        "option (L352)",
+        "argument (L324)",
+        "pass_context (L28)",
+        "pass_obj (L39)",
+        "make_pass_decorator (L51)",
+        "version_option (L421)",
+        "custom_version_option (L559)",
+        "help_option (L601)",
+        "confirmation_option (L380)",
+        "password_option (L404)"
+      ]
+    },
+    {
+      "path": "src/click/shell_completion.py",
+      "role": "Shell tab-completion. shell_complete (L19) dispatches on the env var instruction (source or complete). ShellComplete base class (L277) with Bash (L388), Zsh (L447), Fish (L479), and PowerShell (L516) subclasses. CompletionItem (L67). add_completion_class and get_completion_class (L560/588) form a registry.",
+      "public_interfaces": [
+        "shell_complete",
+        "ShellComplete",
+        "BashComplete",
+        "ZshComplete",
+        "FishComplete",
+        "PowerShellComplete",
+        "CompletionItem",
+        "add_completion_class",
+        "get_completion_class",
+        "split_arg_string (L598)"
+      ]
+    },
+    {
+      "path": "src/click/formatting.py",
+      "role": "Help-text layout. HelpFormatter (L110) writes usage, sections, and definition lists with indentation and width, plus wrap_text (L31) and measure_table (L14).",
+      "public_interfaces": [
+        "HelpFormatter",
+        "wrap_text",
+        "measure_table",
+        "iter_rows",
+        "join_options"
+      ]
+    },
+    {
+      "path": "src/click/exceptions.py",
+      "role": "Exception hierarchy used for user-facing errors and exit codes. ClickException (L35) is the base, with UsageError (L68), BadParameter (L114), MissingParameter (L159), NoSuchOption (L232), NoSuchCommand (L268), FileError (L342). Abort (L362) and Exit (L366) are control-flow signals.",
+      "public_interfaces": [
+        "ClickException",
+        "UsageError",
+        "BadParameter",
+        "MissingParameter",
+        "NoSuchOption",
+        "NoSuchCommand",
+        "BadOptionUsage",
+        "BadArgumentUsage",
+        "FileError",
+        "Abort",
+        "Exit"
+      ]
+    },
+    {
+      "path": "src/click/termui.py",
+      "role": "Interactive terminal utilities: prompt (L139/168), confirm (L289), progressbar (L403-443), style and secho (L641/780), edit (L815), launch (L923), getchar (L957), pause (L993), echo_via_pager (L367). Platform implementations live in _termui_impl.py and _winconsole.py.",
+      "public_interfaces": [
+        "prompt",
+        "confirm",
+        "progressbar",
+        "style",
+        "unstyle",
+        "secho",
+        "edit",
+        "launch",
+        "getchar",
+        "pause",
+        "clear",
+        "echo_via_pager",
+        "get_pager_file"
+      ]
+    },
+    {
+      "path": "src/click/utils.py",
+      "role": "Misc helpers: echo (L240), open_file (L381), format_filename (L430), get_app_dir (L472), _LazyFile (L103), _detect_program_name (L550), _expand_args (L605, Windows glob expansion used by Command.main).",
+      "public_interfaces": [
+        "echo",
+        "open_file",
+        "format_filename",
+        "get_app_dir"
+      ]
+    },
+    {
+      "path": "src/click/globals.py",
+      "role": "Thread-local current-context stack. get_current_context (L20), push_context (L44), pop_context (L49), resolve_color_default (L54).",
+      "public_interfaces": [
+        "get_current_context",
+        "push_context",
+        "pop_context",
+        "resolve_color_default"
+      ]
+    },
+    {
+      "path": "src/click/testing.py",
+      "role": "Test harness. CliRunner (L317) isolates stdin/stdout/env and invokes a command in-process. Result (L231) wraps output, exit_code, and exception. Capture modes are 'sys' or 'fd' (docstring L331-338).",
+      "public_interfaces": [
+        "CliRunner",
+        "CliRunner.invoke (L595)",
+        "CliRunner.isolation (L398)",
+        "Result",
+        "EchoingStdin",
+        "make_input_stream"
+      ]
+    },
+    {
+      "path": "src/click/_compat.py, _termui_impl.py, _textwrap.py, _utils.py, _winconsole.py",
+      "role": "Private, platform-specific and compatibility helpers. _winconsole handles Windows console I/O; _termui_impl holds ProgressBar (L44) and pager/edit internals; _compat handles stream and atomic-file details.",
+      "public_interfaces": [
+        "private (underscore-prefixed); not part of the public API"
+      ]
+    }
+  ],
+  "execution_flow": "1) A script's console entry calls cli() which is Command.__call__ -> Command.main (core.py L1483, L1651). 2) main resolves args (sys.argv[1:], Windows-expanded at L1534-1540) and prog_name (L1542-1543). 3) _main_shell_completion (L1546, L1619-1649) checks _PROG_COMPLETE; if set it calls shell_completion.shell_complete and exits. 4) main calls self.make_context(prog_name, args) (L1559). make_context (L1330-1365) builds a Context (context_class) and calls parse_args inside ctx.scope(). 5) Command.parse_args (L1367-1398) creates a parser via make_parser (L1227), gets opts, leftover args, and order from _OptionParser.parse_args (parser.py L298-314), then calls param.handle_parse_result for each parameter in processing order (iter_params_for_processing, core.py L147). 6) handle_parse_result (L2763) calls consume_value (L2518: CLI value, then envvar, then default_map, then default) and process_value (L2640), which runs type_cast_value (L2566) and the ParamType.convert (types.py L65). Leftover args are stored in ctx.args. 7) main calls self.invoke(ctx) (L1560). For a plain Command, invoke (L1400-1414) calls ctx.invoke(callback, **ctx.params). For a Group (core.py L2020-2086), it resolves the subcommand with resolve_command (L2088-2112), which uses get_command/list_commands, then creates the sub-context with cmd.make_context(parent=ctx) and invokes it. In chain mode it creates all subcontexts first and invokes them in order. 8) Exceptions are caught in main (L1571-1617): Exit gives an exit code, Abort and KeyboardInterrupt print 'Aborted', ClickException shows its message and exit code (exceptions.py L35). The process then ends with sys.exit (L1612). With standalone_mode=False, main returns the value or re-raises instead. For tests, CliRunner.invoke (testing.py L595) runs main with standalone_mode and captures output into Result.\"}]",
+  "test_runner": "pytest (pyproject.toml L83-91 sets testpaths=['tests'], filterwarnings='error', and addopts '-m not stress'). Tox runs it via the env_run_base command 'pytest -v --tb=short' (pyproject.toml L156-167).",
+  "test_layout": [
+    {
+      "path": "tests/conftest.py",
+      "covers": [
+        "Provides the 'runner' fixture = CliRunner() (conftest.py L6-8). Shared by most test files."
+      ]
+    },
+    {
+      "path": "tests/test_basic.py",
+      "covers": [
+        "core.py (Command/Group basics), decorators.py (command/group)  \u2014 inferred from name; 42 test functions (grep count)"
+      ]
+    },
+    {
+      "path": "tests/test_arguments.py",
+      "covers": [
+        "core.py Argument (L3698), parser.py _Argument (inferred from file name, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_options.py",
+      "covers": [
+        "core.py Option (L2891), decorators.option (inferred from file name, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_parser.py",
+      "covers": [
+        "parser.py _OptionParser (inferred from file name, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_chain.py",
+      "covers": [
+        "core.py Group chain mode (Group.invoke L2020-2086) (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_commands.py",
+      "covers": [
+        "core.py Group/Command, command resolution (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_command_decorators.py",
+      "covers": [
+        "decorators.py command/group/pass_context helpers (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_context.py",
+      "covers": [
+        "core.py Context (L213) (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_custom_classes.py",
+      "covers": [
+        "core.py context_class/command_class overrides (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_defaults.py",
+      "covers": [
+        "core.py Parameter.consume_value / default handling (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_deprecations.py",
+      "covers": [
+        "__init__.py __getattr__ deprecated names (L76-144), deprecated params in core.py (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_formatting.py",
+      "covers": [
+        "formatting.py HelpFormatter (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_imports.py",
+      "covers": [
+        "__init__.py public exports (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_info_dict.py",
+      "covers": [
+        "Command/Parameter.to_info_dict (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_normalization.py",
+      "covers": [
+        "token_normalize_func handling in core.py (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_shell_completion.py",
+      "covers": [
+        "shell_completion.py (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_stream_lifecycle.py",
+      "covers": [
+        "utils.py _LazyFile/open_file, _compat (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_termui.py",
+      "covers": [
+        "termui.py, _termui_impl.py (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_testing.py",
+      "covers": [
+        "testing.py CliRunner (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_abort_interrupt.py",
+      "covers": [
+        "Command.main abort/interrupt handling core.py L1571-1617 (inferred, not read)"
+      ]
+    },
+    {
+      "path": "tests/test_compat.py",
+      "covers": [
+        "_compat.py (inferred, not read)"
+      ]
+    }
+  ],
+  "setup_and_test_commands": [
+    {
+      "command": "pip install -e . (or uv sync) with the dev groups",
+      "purpose": "Install the package and the dev/test dependency groups",
+      "source": "pyproject.toml [dependency-groups] L25-60 and [tool.uv] default-groups L80-81",
+      "verified": false
+    },
+    {
+      "command": "pytest",
+      "purpose": "Run the default test suite; the stress marker is deselected by addopts",
+      "source": "pyproject.toml [tool.pytest.ini_options] L83-91",
+      "verified": false
+    },
+    {
+      "command": "pytest -v --tb=short --basetemp={env_tmp_dir}",
+      "purpose": "tox env_run_base test command",
+      "source": "pyproject.toml [tool.tox.env_run_base] L156-167",
+      "verified": false
+    },
+    {
+      "command": "pytest -v --tb=short --numprocesses=auto --basetemp={env_tmp_dir}",
+      "purpose": "Randomized parallel test run (tox env 'random')",
+      "source": "pyproject.toml [tool.tox.env.random] L169-176",
+      "verified": false
+    },
+    {
+      "command": "pytest -v --tb=short -x -m stress --override-ini=addopts=",
+      "purpose": "High-iteration stress tests (tox env 'stress')",
+      "source": "pyproject.toml [tool.tox.env.stress] L178-185",
+      "verified": false
+    },
+    {
+      "command": "pre-commit run --all-files",
+      "purpose": "Lint and format checks (ruff via pre-commit)",
+      "source": "pyproject.toml [tool.tox.env.style] L187-191 and [tool.ruff] L119-143",
+      "verified": false
+    },
+    {
+      "command": "mypy  and  pyright --ignoreexternal --verifytypes click",
+      "purpose": "Static type checking of src and tests/typing, and public-API typing verification",
+      "source": "pyproject.toml [tool.tox.env.typing] L193-199, [tool.mypy] L107-112, [tool.pyright] L114-117",
+      "verified": false
+    },
+    {
+      "command": "sphinx-build -E -W -b dirhtml docs docs/_build/dirhtml",
+      "purpose": "Build the documentation (docs directory not inspected)",
+      "source": "pyproject.toml [tool.tox.env.docs] L201-204",
+      "verified": false
+    },
+    {
+      "command": "tox -e py3.14  (env list: py3.10-py3.14, py3.14t, pypy3.11, style, typing, docs)",
+      "purpose": "Run the tox matrix",
+      "source": "pyproject.toml [tool.tox] env_list L145-154",
+      "verified": false
+    }
+  ],
+  "evidence": [
+    {
+      "claim": "Project name, version 8.5.1, and Python requirement >=3.10",
+      "path": "pyproject.toml",
+      "line_start": 2,
+      "line_end": 16
+    },
+    {
+      "claim": "Build backend is flit_core; module name click",
+      "path": "pyproject.toml",
+      "line_start": 62,
+      "line_end": 67
+    },
+    {
+      "claim": "No runtime dependencies in [project]; only dependency-groups for dev, tests, docs, typing",
+      "path": "pyproject.toml",
+      "line_start": 25,
+      "line_end": 60
+    },
+    {
+      "claim": "pytest config: testpaths tests, filterwarnings error, stress marker deselected by default",
+      "path": "pyproject.toml",
+      "line_start": 83,
+      "line_end": 91
+    },
+    {
+      "claim": "tox env_run_base runs pytest with uv-venv-lock-runner",
+      "path": "pyproject.toml",
+      "line_start": 156,
+      "line_end": 167
+    },
+    {
+      "claim": "mypy strict over src and tests/typing; pyright basic",
+      "path": "pyproject.toml",
+      "line_start": 107,
+      "line_end": 117
+    },
+    {
+      "claim": "Ruff lint rules and isort single-line imports",
+      "path": "pyproject.toml",
+      "line_start": 119,
+      "line_end": 143
+    },
+    {
+      "claim": "Package public exports from core, decorators, exceptions, formatting, globals, termui, types, utils",
+      "path": "src/click/__init__.py",
+      "line_start": 10,
+      "line_end": 73
+    },
+    {
+      "claim": "Deprecated names BaseCommand, MultiCommand, OptionParser, __version__, get_binary_stream, get_text_stream emit DeprecationWarning via __getattr__",
+      "path": "src/click/__init__.py",
+      "line_start": 76,
+      "line_end": 144
+    },
+    {
+      "claim": "Command.main reads sys.argv[1:], expands args on Windows, detects prog name",
+      "path": "src/click/core.py",
+      "line_start": 1534,
+      "line_end": 1543
+    },
+    {
+      "claim": "main runs shell completion before parsing",
+      "path": "src/click/core.py",
+      "line_start": 1545,
+      "line_end": 1546
+    },
+    {
+      "claim": "main builds context via make_context, invokes self.invoke, then ctx.exit()",
+      "path": "src/click/core.py",
+      "line_start": 1557,
+      "line_end": 1570
+    },
+    {
+      "claim": "Exception-to-exit-code mapping: Exit, Abort, KeyboardInterrupt/EOFError, ClickException, EPIPE handling; sys.exit at end",
+      "path": "src/click/core.py",
+      "line_start": 1571,
+      "line_end": 1617
+    },
+    {
+      "claim": "_main_shell_completion reads _PROG_COMPLETE env var and calls shell_completion.shell_complete",
+      "path": "src/click/core.py",
+      "line_start": 1619,
+      "line_end": 1649
+    },
+    {
+      "claim": "make_context builds context_class and calls parse_args within ctx.scope",
+      "path": "src/click/core.py",
+      "line_start": 1330,
+      "line_end": 1365
+    },
+    {
+      "claim": "Command.parse_args uses make_parser, parser.parse_args, handle_parse_result per param, UNSET->None, extra-args check",
+      "path": "src/click/core.py",
+      "line_start": 1367,
+      "line_end": 1398
+    },
+    {
+      "claim": "Command.invoke calls ctx.invoke(callback, **ctx.params)",
+      "path": "src/click/core.py",
+      "line_start": 1400,
+      "line_end": 1414
+    },
+    {
+      "claim": "Group.parse_args splits the first positional into _protected_args as the subcommand name (or all args in chain mode)",
+      "path": "src/click/core.py",
+      "line_start": 2006,
+      "line_end": 2018
+    },
+    {
+      "claim": "Group.invoke handles missing command, non-chain subcommand dispatch, and chain mode creating subcontexts first",
+      "path": "src/click/core.py",
+      "line_start": 2020,
+      "line_end": 2086
+    },
+    {
+      "claim": "resolve_command with token normalization and NoSuchCommand error; option-looking names reparse for --help",
+      "path": "src/click/core.py",
+      "line_start": 2088,
+      "line_end": 2112
+    },
+    {
+      "claim": "consume_value precedence: CLI value, envvar, default_map, default",
+      "path": "src/click/core.py",
+      "line_start": 2518,
+      "line_end": 2564
+    },
+    {
+      "claim": "handle_parse_result processes value through type and records parameter source",
+      "path": "src/click/core.py",
+      "line_start": 2763,
+      "line_end": 2818
+    },
+    {
+      "claim": "_OptionParser is an optparse-like internal parser, deprecated in 8.2",
+      "path": "src/click/parser.py",
+      "line_start": 224,
+      "line_end": 239
+    },
+    {
+      "claim": "_OptionParser.parse_args returns (opts, largs, order)",
+      "path": "src/click/parser.py",
+      "line_start": 298,
+      "line_end": 314
+    },
+    {
+      "claim": "shell_complete dispatches on source/complete instruction and returns exit code",
+      "path": "src/click/shell_completion.py",
+      "line_start": 19,
+      "line_end": 55
+    },
+    {
+      "claim": "Completion class registry add/get functions",
+      "path": "src/click/shell_completion.py",
+      "line_start": 560,
+      "line_end": 588
+    },
+    {
+      "claim": "CliRunner docstring: capture modes sys and fd; isolates in-process",
+      "path": "src/click/testing.py",
+      "line_start": 317,
+      "line_end": 344
+    },
+    {
+      "claim": "CliRunner.invoke method",
+      "path": "src/click/testing.py",
+      "line_start": 595,
+      "line_end": 595
+    },
+    {
+      "claim": "Thread-local-style context stack: get_current_context, push_context, pop_context",
+      "path": "src/click/globals.py",
+      "line_start": 13,
+      "line_end": 54
+    },
+    {
+      "claim": "Exception hierarchy: ClickException base, UsageError, BadParameter, MissingParameter, NoSuchOption, NoSuchCommand, FileError, Abort, Exit",
+      "path": "src/click/exceptions.py",
+      "line_start": 35,
+      "line_end": 366
+    },
+    {
+      "claim": "Pytest runner fixture 'runner' = CliRunner()",
+      "path": "tests/conftest.py",
+      "line_start": 6,
+      "line_end": 8
+    },
+    {
+      "claim": "README example: @click.command with @click.option and click.echo",
+      "path": "README.md",
+      "line_start": 21,
+      "line_end": 44
+    },
+    {
+      "claim": "Changelog top entry: Version 8.5.1 released 2026-11-09",
+      "path": "CHANGES.md",
+      "line_start": 1,
+      "line_end": 3
+    },
+    {
+      "claim": "tests/test_basic.py contains 42 test functions/classes matched by grep",
+      "path": "tests/test_basic.py",
+      "line_start": 1,
+      "line_end": 1
+    },
+    {
+      "claim": "CI workflow files exist: tests.yaml, pre-commit.yaml, nightly.yaml, publish.yaml, zizmor.yaml, lock.yaml",
+      "path": ".github/workflows/tests.yaml",
+      "line_start": 1,
+      "line_end": 1
+    }
+  ],
+  "external_sources": [],
+  "open_questions": [
+    "Could not confirm that the checked-out commit is the 8.5.1 tag. The clone tool reported commit cf19179e8e2fd54c601378cec9e0d21bb12b6fb1, and git describe was blocked. pyproject.toml and CHANGES.md both say 8.5.1.",
+    "Test-to-module mapping is inferred from file names only. I did not open most test files, so the coverage claims need checking against their imports.",
+    "How the Group chain and lazy-loading features are tested (README claims lazy loading of subcommands, L16-18) was not verified; lazy loading presumably goes through Group.get_command/list_commands (core.py L1959-1970), which I did not read in depth.",
+    "Whether the tests.yaml CI workflow runs the same commands as the tox config was not checked."
+  ],
+  "limitations": [
+    "Bash was restricted to git -C repo <subcommands>, so I could not run git describe or a shell listing. I used Glob, Grep and Read only. This is a read-only exploration: I did not install, run, or test anything. All setup and test commands are discovered and unverified.",
+    "Read in depth: core.py (main, make_context, parse_args, invoke, resolve_command, consume_value, handle_parse_result), parser.py (parse_args), shell_completion.py (shell_complete), testing.py (class header only), __init__.py, pyproject.toml, README, CHANGES top, conftest.py. Not read in depth: types.py internals, formatting.py, termui.py/_termui_impl.py, utils.py, globals.py bodies, decorators.py bodies, most test files, docs/, and the CI workflow contents. Their roles come from definition-level grep only.",
+    "The 'Key Modules' public-interface lists are taken from definition-level grep, which includes underscore names that are private. Treat them as a starting map, not a full API reference.",
+    "No external documentation was fetched. Behaviour claims come only from repository code and its docs."
+  ]
+}
