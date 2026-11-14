@@ -60,6 +60,8 @@ uv run python -m pipeline.cli demand <run_id>
 uv run python -m pipeline.cli propose <run_id>
 uv run python -m pipeline.cli validate <run_id>
 uv run python -m pipeline.cli spec <run_id>
+# Draft feature tests from the final specs and locate existing regression tests
+uv run python -m pipeline.cli tests <run_id>
 # details: pipeline_plan.md → "How to Run"
 
 # 1. Generate packages into generated_tasks/   (stub for now)
@@ -76,6 +78,19 @@ uv run python kit/harness/validate_submission.py <submission_dir>
 ```
 
 Both scripts accept specific package paths as arguments to run a subset.
+
+The `tests` command reads `test_agent_rules.md` on every invocation and uses `TEST_MODEL`
+in `pipeline/config.py`. It consumes the selected run's `features.json` and `features.md`
+(or also `feature.md` when present). It inspects the repository's existing tests and prints
+whether they were found and their folder paths. It then drafts one new pytest file per
+feature, with acceptance-criterion mappings. Existing tests and source files are untouched.
+
+Outputs are in `runs/<run_id>/feature_tests/attempt_N/`: `regression_tests.json`, `report.md`,
+`summary.json`, input/rules snapshots, and one folder per feature containing `draft.json`,
+`files/<repo-relative-test-path>`, and `test_patch.diff`. Ambiguous specifications are reported
+as blocked drafts. Each invocation keeps previous attempts. Test files are drafts: syntax
+and path checks are performed, but tests are not executed, collected IDs are not invented,
+and Harbor/oracle/nop/mutation validation remains pending until a gold implementation exists.
 
 ## Layout
 

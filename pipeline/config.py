@@ -48,6 +48,7 @@ DIFFICULTY_MAX_BUDGET_USD = 4.00   # per batch
 VALUE_MAX_BUDGET_USD = 2.00        # per batch
 SPEC_MAX_BUDGET_USD = 4.00         # per feature, including fix rounds
 QUIZ_MAX_BUDGET_USD = 0.75         # per quiz
+TEST_MODEL = "claude-opus-5-5"         # test agent: drafts feature tests (pipeline/test_agent.py)
 
 # Caps for every agent session. Budgets are the SDK's client-side estimate and can overshoot slightly.
 AGENT_MAX_TURNS = 60
@@ -57,6 +58,8 @@ MAP_MAX_BUDGET_USD = 2.00      # repo map (one session)
 CARD_MAX_BUDGET_USD = 1.50     # deep dive, per module
 UPSTREAM_MAX_BUDGET_USD = 1.50 # upstream novelty check (web)
 PROPOSE_MAX_BUDGET_USD = 6.00  # candidate proposal
+TEST_DISCOVERY_MAX_BUDGET_USD = 1.00
+TEST_MAX_BUDGET_USD = 2.00    # per feature, test authoring only
 DEEP_DIVE_MAX_MODULES = 8
 CLONE_TIMEOUT_SEC = 300
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"

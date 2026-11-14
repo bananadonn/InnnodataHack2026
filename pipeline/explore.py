@@ -596,6 +596,10 @@ def build_report(workspace: Path, meta: dict[str, Any]) -> RepoReport:
     order = {m.path: i for i, m in enumerate(repo_map.key_modules)}
     cards: list[ModuleCard] = []
     for f in sorted((workspace / "claims").glob("*.json")):
+        # macOS creates binary AppleDouble sidecars on external filesystems.
+        # They match *.json but are not agent output.
+        if f.name.startswith("._") or not f.is_file():
+            continue
         raw = json.loads(f.read_text(encoding="utf-8"))
         cards.append(verify_card(raw["path"], CardClaim.model_validate(raw["claim"]), repo, ver))
     cards.sort(key=lambda c: order.get(c.path, 999))

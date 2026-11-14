@@ -1,0 +1,17 @@
+{
+  "found": true,
+  "folders": [
+    "tests",
+    "tests/test_types",
+    "tests/test_utils",
+    "tests/test_exceptions"
+  ],
+  "existing_test_files": [
+    "tests/conftest.py",
+    "tests/test_options.py",
+    "tests/test_types/test_Choice.py",
+    "tests/test_utils/test_echo.py",
+    "tests/test_exceptions/test_FileError.py"
+  ],
+  "explanation": "The repo has an existing pytest regression suite. `git ls-files` lists tracked tests in four folders:\n- tests/ (test_basic.py, test_options.py, test_arguments.py, test_commands.py, test_context.py, test_shell_completion.py, test_termui.py, test_testing.py and others)\n- tests/test_types/ (Choice, File, Path, IntRange and others)\n- tests/test_utils/ (echo, prompt, LazyFile, style and others)\n- tests/test_exceptions/ (test_FileError.py)\n\nTest configuration is in the repo-root pyproject.toml: lines 83-87 set testpaths = [\"tests\"] and filterwarnings = [\"error\"], so any warning fails a test.\n\nFiles I read:\n- tests/conftest.py, lines 6-8: a function-scoped `runner` fixture that returns CliRunner().\n- tests/test_options.py, lines 21-34: invokes @click.command/@click.option commands through the runner and checks the output.\n- tests/test_types/test_Choice.py, lines 4-7: checks Choice.get_invalid_choice_message.\n- tests/test_utils/test_echo.py, lines 12-20: checks click.echo output using runner.isolation().\n- tests/test_exceptions/test_FileError.py, lines 4-6: checks FileError.format_message with a surrogate filename.\n\nNot included: tests/typing/*.py are mypy typing checks, not pytest tests (their files aren't named test_*). The ._* files in tests/ are untracked macOS metadata.\n\nI didn't run any tests. Final PASS_TO_PASS IDs and validation are still pending. I wrote no feature tests because no feature.md or instruction.md was available."
+}

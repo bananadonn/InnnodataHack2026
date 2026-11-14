@@ -1,0 +1,1080 @@
+{
+  "variation_strategy": "The 14 candidates cover 11 categories: invocation/async, path validation, help extras, subcommand dispatch (aliases and default command), help layout (option sections and command sections), error output styling, terminal colour policy, multi-value options, cross-parameter validation, config files, enum choices and help styling. Their primary files are core.py, types.py, exceptions.py, decorators.py, formatting.py and _compat.py. They also vary in shape:\n- Some are local type tweaks: Path must_not_exist, Choice enum_by_value, show_range.\n- Some change the dispatch pipeline and must stay consistent across invoke, completion, default_map/auto-envvar keying and error suggestions: aliases, default_command, async.\n- Some change the value pipeline across every source (command line, env var, default_map, default, prompt): separator, config_option, mutually_exclusive.\n- Some change rendering across help, usage-in-errors and colour stripping: help sections, help_styles, error_style, color_option.\nEvery rule is tied either to the cited request or to an existing click convention: ParameterSource explicitness, Context inheritance of color and show_default, Option show_* flags, info_name keying of default_map and auto envvars, and separate write_dl calls per section. Each trap comes from a real collision with existing code, such as CliRunner patching should_strip_ansi, Context resources closing before a coroutine runs, exact-dict info tests, the termui\u2192exceptions import cycle, and prompt input reaching type_cast_value as a bare string.",
+  "candidates": [
+    {
+      "slug": "option-repeat-policy",
+      "category": "option parsing",
+      "title": "on_repeat policy for non-multiple options given more than once",
+      "demand_refs": [],
+      "user_story": "",
+      "problem": "When a single-value option is given twice (`--env prod --env dev`), the last value wins silently, which hides mistakes in long command lines. Some CLIs want first-wins or an error.",
+      "public_interface": [
+        "Option.__init__(..., on_repeat: t.Literal['last', 'first', 'error'] = 'last', **attrs)",
+        "Option.to_info_dict() gains key 'on_repeat'"
+      ],
+      "behavior": [
+        "'last' is today's behavior. 'first' keeps the first command-line value. 'error' raises BadOptionUsage when the same Option object is used a second time.",
+        "Repetition is counted per Option object over all its spellings, including secondary opts: `--shout --no-shout` is a repetition of one bool flag.",
+        "The 'error' message is \"Option '--env' cannot be given more than once.\" and names the spelling used at the second occurrence. Exit code is 2.",
+        "on_repeat other than 'last' together with multiple=True or count=True raises TypeError at construction. An unknown value raises ValueError.",
+        "The policy only concerns command-line tokens. Envvar and default_map are single sources and never count as repeats."
+      ],
+      "interaction_rules": [
+        "Feature-switch options are separate Option objects sharing one dest (e.g. --upper/--lower with flag_value). Using both is NOT a repetition, and the existing last-wins arbitration between them stays.",
+        "The error is raised during parsing, before any parameter is processed. `--env a --env b --help` fails with the repeat error instead of showing help, like other parse errors.",
+        "Under resilient_parsing (completion) the parser's UsageError is swallowed as usual, and the policy only decides which value is kept."
+      ],
+      "traps": [
+        "Tracking repeats by dest instead of by Option object flags feature switches (--upper then --lower) as repeats.",
+        "Tracking by spelling instead of object misses `-e a --env b` and `--shout --no-shout` repeats.",
+        "For 'first' with a bool flag that has secondary opts, `--no-shout --shout` must give False, the first occurrence's const, not the last.",
+        "Naming the first spelling in the error instead of the second: `--env a -e b` must mention '-e'."
+      ],
+      "integration_points": [
+        "Option.add_to_parser",
+        "_Option.process / _ParsingState (per-object occurrence tracking)",
+        "_OptionParser.parse_args (resilient error swallowing)",
+        "Option.to_info_dict"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/parser.py",
+          "interfaces": [
+            "_Option.process",
+            "_OptionParser.add_option",
+            "_OptionParser.parse_args",
+            "_ParsingState"
+          ]
+        },
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Option.__init__",
+            "Option.add_to_parser",
+            "Option._validate",
+            "Option.to_info_dict"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/parser.py",
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_parser.py",
+        "tests/test_options.py",
+        "tests/test_info_dict.py"
+      ],
+      "new_test_file": "tests/test_repeat_policy.py",
+      "novelty_rationale": "Neither Click nor argparse can reject or first-win a repeated store option. The listed add-ons do not touch parser actions. The per-object versus per-dest rule follows from Click's feature-switch design.",
+      "estimated_gold_lines": 75
+    },
+    {
+      "slug": "async-command-callbacks",
+      "category": "command invocation",
+      "title": "Run async def command callbacks automatically",
+      "demand_refs": [
+        "https://github.com/pallets/click/issues/2033"
+      ],
+      "user_story": "As a developer whose application code is asyncio-based, I want to decorate `async def` functions with @click.command / @click.group and have Click start the event loop, without writing an asyncio.run wrapper around every coroutine (#2033; davidism said auto-starting an event loop for async callbacks is the most likely addition).",
+      "problem": "Writing a command, group callback or result callback as `async def` today returns an unawaited coroutine. Context.invoke (src/click/core.py:861-911) just calls `callback(*args, **kwargs)` and returns the result, so users see 'coroutine was never awaited' and the body never runs. Users have to wrap every callback in asyncio.run or switch to the asyncclick fork.",
+      "public_interface": [
+        "No new parameters. Context.invoke(callback, /, *args, **kwargs) now detects when the callback returned a coroutine object and runs it to completion.",
+        "Command.main(..., standalone_mode=False) returns the awaited result of an async callback.",
+        "Group result callbacks registered with Group.result_callback may be `async def`."
+      ],
+      "behavior": [
+        "If the value returned by the callback in Context.invoke is a coroutine (inspect.iscoroutine), and no event loop is running in the current thread, Click runs it with asyncio.run and returns its result. `@click.command() async def cli(): return 42` invoked with standalone_mode=False returns 42.",
+        "The coroutine runs while the context is still entered. click.get_current_context() inside the async body returns the command's context, and resources registered with ctx.with_resource / ctx.call_on_close are closed only after the coroutine finishes.",
+        "An async group callback runs to completion before the subcommand context is created, keeping the existing order in Group.invoke (core.py:2048-2054). In chain mode each async subcommand is awaited in order, and the result callback receives the list of awaited results, not coroutine objects.",
+        "An async result callback is awaited, and its result becomes the group's return value.",
+        "If ctx.invoke is called while an event loop is already running (for example ctx.invoke(other_cmd) from inside an async callback), it does not call asyncio.run. It returns an awaitable that the caller can `await`. Awaiting it enters the sub-context for the duration, so the sub-command sees its own context and its resources are cleaned up after it completes.",
+        "Exceptions raised inside the coroutine, such as click.UsageError, click.Abort or ctx.exit(3), propagate exactly as they do from sync callbacks. Standalone mode prints 'Error: ...' with exit code 2, or exits with code 3."
+      ],
+      "interaction_rules": [
+        "Detection uses the returned value, not the function. pass_context, pass_obj and make_pass_decorator wrap callbacks with functools.update_wrapper (src/click/decorators.py:28-97), so iscoroutinefunction on the wrapper is False even though calling it yields a coroutine.",
+        "augment_usage_errors still wraps execution, so a BadParameter raised inside an async callback gets ctx filled in, the same as for sync callbacks.",
+        "Sync callbacks behave exactly as before. Non-coroutine return values, including plain awaitables like Futures, are returned unchanged."
+      ],
+      "traps": [
+        "Calling asyncio.run after the `with augment_usage_errors(self), ctx:` block has exited (core.py:910-911) would run the body after ctx has been popped and closed. get_current_context() would then fail inside the coroutine, and with_resource files would already be closed. The coroutine must be driven inside that block.",
+        "Checking inspect.iscoroutinefunction(callback) misses every callback decorated with @click.pass_context or @click.pass_obj, because those wrappers are plain functions. The check must be on the returned object.",
+        "Calling asyncio.run unconditionally breaks nested ctx.invoke/ctx.forward from inside an async callback, because asyncio.run raises RuntimeError when a loop is already running. In that case an awaitable must be returned, and it must re-enter the sub-context when awaited. Simply returning the raw coroutine would run it after the sub-context closed.",
+        "In chain mode, Group.invoke appends each `sub_ctx.command.invoke(sub_ctx)` result to rv (core.py:2083-2085). If the loop runs anywhere other than Context.invoke, the result callback receives coroutine objects."
+      ],
+      "integration_points": [
+        "Context.invoke",
+        "Command.invoke",
+        "Group.invoke",
+        "Context.forward",
+        "Command.main"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Context.invoke",
+            "Command.invoke",
+            "Group.invoke",
+            "Context.forward",
+            "Context.with_resource",
+            "Group.result_callback"
+          ]
+        },
+        {
+          "module": "src/click/decorators.py",
+          "interfaces": [
+            "pass_context",
+            "pass_obj",
+            "make_pass_decorator"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_commands.py",
+        "tests/test_chain.py",
+        "tests/test_context.py",
+        "tests/test_basic.py"
+      ],
+      "new_test_file": "tests/test_async_callbacks.py",
+      "novelty_rationale": "src/click contains no asyncio, iscoroutine or event-loop code. Async support only exists through the asyncclick fork, which is a fork rather than an add-on, and none of the listed add-ons provide it for plain click. It is not on the upstream do-not-propose list.",
+      "estimated_gold_lines": 70
+    },
+    {
+      "slug": "path-must-not-exist",
+      "category": "parameter type validation",
+      "title": "click.Path(must_not_exist=True): reject paths that already exist",
+      "demand_refs": [
+        "https://github.com/pallets/click/issues/1428"
+      ],
+      "user_story": "As a CLI author writing `mytool init --output new.db`, I want Click to reject an existing target, the same way exists=True rejects a missing one, instead of writing a callback in every command (#1428, with several 2024 comments asking for it).",
+      "problem": "click.Path can require that a path exists, but it cannot require that a path does not exist. With exists=False, a missing path skips every check (src/click/types.py:1176-1180) and an existing path passes. So a command that creates an output file cannot refuse to overwrite it without a custom type or callback.",
+      "public_interface": [
+        "click.Path(exists=False, file_okay=True, dir_okay=True, writable=False, readable=True, resolve_path=False, allow_dash=False, path_type=None, executable=False, *, must_not_exist: bool = False)",
+        "Path.must_not_exist: bool attribute"
+      ],
+      "behavior": [
+        "With must_not_exist=True, a value that names an existing filesystem entry fails with BadParameter \"{Name} {filename!r} already exists.\". {Name} is the type name in title case (File, Directory, Path), and {filename} is format_filename of the value as given. On the command line this shows as \"Error: Invalid value for '-o' / '--output': File 'out.txt' already exists.\" with exit code 2.",
+        "A path that does not exist is accepted and returned through coerce_path_result. With path_type=pathlib.Path the result is a Path object.",
+        "A dangling symlink counts as existing and is rejected, because writing to it would follow the link. The existence test does not follow symlinks (os.path.lexists semantics).",
+        "Passing must_not_exist=True together with exists=True raises TypeError at construction.",
+        "With allow_dash=True and file_okay=True, the value '-' is accepted without any existence check, as allow_dash already does today.",
+        "With resolve_path=True the check runs on the resolved path, but the message still shows the original value."
+      ],
+      "interaction_rules": [
+        "The check applies to every value source, because Path.convert runs for command-line, env var, default_map, default and prompt values alike. A prompted value that already exists makes prompt() print the error and ask again.",
+        "file_okay, dir_okay, readable, writable and executable checks are skipped when the path is absent. They only describe existing entries, matching the existing exists=False flow. The new rejection of existing paths is reported instead of any 'is a file' / 'is a directory' message.",
+        "Path.to_info_dict output is unchanged. tests/test_info_dict.py:163-175 compares the dict exactly, and to_info_dict already omits executable and resolve_path."
+      ],
+      "traps": [
+        "Reusing the existing os.stat try/except (types.py:1176-1180) as the existence test lets dangling symlinks through, because os.stat follows links and raises. Must-not-exist has to use a test that does not follow symlinks.",
+        "Placing the new check after the file_okay/dir_okay checks gives 'Directory x is a file.'-style messages for an existing entry of the wrong kind. The 'already exists' rejection has to come first.",
+        "Adding a 'must_not_exist' key to Path.to_info_dict breaks the exact dict comparison in tests/test_info_dict.py. The info dict must stay as it is.",
+        "The '-' dash shortcut (types.py:1169-1172) must still bypass the check. Otherwise `--output -` (stdout) is rejected whenever a file literally named '-' exists, or is treated as a path at all."
+      ],
+      "integration_points": [
+        "Path.convert",
+        "Path.coerce_path_result",
+        "ParamType.fail",
+        "Option.prompt_for_value"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/types.py",
+          "interfaces": [
+            "Path.convert",
+            "Path.__init__",
+            "Path.coerce_path_result",
+            "ParamType.fail"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/types.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_types/test_Path.py",
+        "tests/test_basic.py",
+        "tests/test_info_dict.py"
+      ],
+      "new_test_file": "tests/test_types/test_Path_must_not_exist.py",
+      "novelty_rationale": "Path has no must-not-exist mode (types.py:1097-1180). It is not in the upstream lists. click-params and click-extra offer other path helpers, but none of them adds this to click.Path. A keyword is used rather than changing exists to a tri-state, because Path() info dicts and explicit exists=False callers must keep their current meaning.",
+      "estimated_gold_lines": 60
+    },
+    {
+      "slug": "option-show-range-toggle",
+      "category": "help extras",
+      "title": "show_range on Option and Context to hide range text in help",
+      "demand_refs": [
+        "https://github.com/pallets/click/issues/2679"
+      ],
+      "user_story": "As an author of a CLI with a `-v/--verbose` count option clamped by IntRange, I want to hide the range in --help the way show_default and show_choices let me hide other extras (#2679, receptive: 'Eventually, sure').",
+      "problem": "Option.get_help_extra always adds the _NumberRangeBase description (core.py:3491-3499), except for count options with the implicit IntRange(min=0). An option such as `-v` with count=True and type=IntRange(0, 3) therefore always shows '[0<=x<=3]', and the only workaround is subclassing the type.",
+      "public_interface": [
+        "click.Option(..., show_range: bool | None = None)",
+        "click.Context(..., show_range: bool | None = None), inherited from the parent like show_default",
+        "Option.show_range attribute; Context.show_range attribute"
+      ],
+      "behavior": [
+        "Option(show_range=False) with type=IntRange(0, 3) produces no range item. get_help_extra(ctx) has no 'range' key, and the help row shows only the help text plus any other extras, for example '  -v, --verbose  Verbosity.'.",
+        "show_range=None (the default) falls back to ctx.show_range. If that is also None, the range is shown, which is the current behaviour.",
+        "Context(show_range=False), also settable through context_settings, hides ranges for every option of that command and of its subcommands unless an option sets show_range=True.",
+        "Conversion errors still name the range: '-v 9' with clamp=False fails with \"Invalid value for '-v' / '--verbose': 9 is not in the range 0<=x<=3.\".",
+        "show_range has no effect on options whose type is not a range, and setting it there does not raise."
+      ],
+      "interaction_rules": [
+        "Option-level show_range overrides the context, and an unset context setting inherits from the parent. This is the same rule show_default follows (core.py:3456-3462 and 504-505).",
+        "The existing rule that hides the implicit count range stays. show_range=True does not reveal the implicit IntRange(min=0) of a plain count option.",
+        "Other extras keep their current order and joining. Hiding the range only removes that item from '[env var: X; default: 1; required]'."
+      ],
+      "traps": [
+        "Removing the range only in get_help_record leaves it in get_help_extra, which formatters and add-ons call directly. The 'range' key itself must be absent.",
+        "Changing _NumberRangeBase._describe_range to return '' when hidden also strips the range from the conversion error message (types.py:688-695) and from __repr__. Visibility has to be decided at the Option and Context level.",
+        "Adding show_range to Option.to_info_dict or Context.to_info_dict breaks the exact dicts in tests/test_info_dict.py, so the info dicts must stay unchanged.",
+        "The Context value must be inherited at Context.__init__ from the parent, like show_default. Otherwise a group's context_settings={'show_range': False} would not apply to subcommand help."
+      ],
+      "integration_points": [
+        "Option.get_help_extra",
+        "Option.get_help_record",
+        "Context.__init__"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Option.get_help_extra",
+            "Option.get_help_record",
+            "Option.__init__",
+            "Context.__init__"
+          ]
+        },
+        {
+          "module": "src/click/types.py",
+          "interfaces": [
+            "IntRange",
+            "FloatRange"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_options.py",
+        "tests/test_info_dict.py",
+        "tests/test_context.py"
+      ],
+      "new_test_file": "tests/test_show_range.py",
+      "novelty_rationale": "There is no show_range toggle anywhere in src/click. Option has show_default, show_choices and show_envvar but nothing for ranges. It is not in the upstream lists or in the listed add-ons as a core option flag.",
+      "estimated_gold_lines": 55
+    },
+    {
+      "slug": "command-aliases",
+      "category": "subcommand dispatch",
+      "title": "aliases= on Command: extra names resolved by every Group",
+      "demand_refs": [
+        "https://github.com/click-contrib/click-aliases"
+      ],
+      "user_story": "As a maintainer of a git-like CLI, I want `tool ci` to run `commit` and help to show 'commit (ci)', without replacing every Group with a custom class (click-aliases: 'Add (multiple) aliases to a click group or command').",
+      "problem": "A subcommand can only be reached by the single key it is registered under. Group.get_command is a plain dict lookup (core.py:1959-1963). The only alias support is the examples/aliases Group subclass or a third-party group class, and those do not keep default_map, auto envvar prefixes, help and error suggestions consistent.",
+      "public_interface": [
+        "click.Command(name, ..., aliases: cabc.Sequence[str] = ())",
+        "Command.aliases: tuple[str, ...]",
+        "@group.command(aliases=['ci']) and @click.group(aliases=[...]) pass it through via **attrs"
+      ],
+      "behavior": [
+        "Group.resolve_command finds a command by alias when no command is registered under that name, and returns the canonical registered name. `cli ci -m x` runs commit, and ctx.invoked_subcommand == 'commit'.",
+        "The sub-context's info_name is the canonical name. ctx.command_path shows 'cli commit', ctx.default_map is taken from parent.default_map['commit'], and the auto envvar prefix is CLI_COMMIT.",
+        "Group.list_commands does not include aliases. In --help the Commands row is 'commit (ci, cm)', with aliases in declaration order, and hidden commands are still omitted.",
+        "Unknown names get suggestions from canonical names and aliases. `cli cii` gives \"No such command 'cii'. Did you mean 'ci'?\".",
+        "A name registered as a real command always wins over an alias of another command.",
+        "Aliases work in chain mode, through CommandCollection sources, and through ctx.token_normalize_func, which is applied to aliases the same way it is applied to names."
+      ],
+      "interaction_rules": [
+        "Lookup order: the exact registered name, then aliases of registered commands, then the normalized name, then aliases matched after normalization. The registered name always takes precedence.",
+        "Shell completion resolves aliases while walking args, because _resolve_context calls resolve_command (shell_completion.py:714). Completion listings show canonical names only, since they come from list_commands.",
+        "Short-help truncation in format_commands must use the width of the displayed term including the alias suffix."
+      ],
+      "traps": [
+        "Returning the alias as cmd_name from resolve_command makes make_context use it as info_name. Then default_map lookup (core.py:393-397) and the auto envvar prefix (core.py:485-488) use 'ci' and silently ignore configuration written for 'commit'.",
+        "Putting alias resolution only in Group.invoke leaves shell completion and CommandCollection broken. Both go through resolve_command/get_command.",
+        "format_commands computes `limit` from len(name) (core.py:1995). Appending ' (ci)' to the term without including it in the width overflows the short-help column.",
+        "Adding an 'aliases' key to Command.to_info_dict breaks the exact info dicts in tests/test_info_dict.py."
+      ],
+      "integration_points": [
+        "Group.resolve_command",
+        "Group.get_command",
+        "Group.format_commands",
+        "CommandCollection.get_command",
+        "shell_completion._resolve_context"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Group.resolve_command",
+            "Group.get_command",
+            "Group.format_commands",
+            "Command.__init__",
+            "CommandCollection.get_command"
+          ]
+        },
+        {
+          "module": "src/click/exceptions.py",
+          "interfaces": [
+            "NoSuchCommand"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_commands.py",
+        "tests/test_chain.py",
+        "tests/test_shell_completion.py",
+        "tests/test_info_dict.py",
+        "tests/test_defaults.py"
+      ],
+      "new_test_file": "tests/test_command_aliases.py",
+      "novelty_rationale": "There is no 'aliases' on Command or Group in src/click, only the examples/aliases subclass. click-aliases supplies a separate Group class. This puts the alias on the Command so any Group, CommandCollection or chain resolves it, with canonical-name keying of default_map and envvars that the add-on does not guarantee.",
+      "estimated_gold_lines": 80
+    },
+    {
+      "slug": "group-default-command",
+      "category": "subcommand dispatch",
+      "title": "Group(default_command=...) runs a subcommand when none is named",
+      "demand_refs": [
+        "https://github.com/click-contrib/click-default-group"
+      ],
+      "user_story": "As the author of a CLI whose main action is one subcommand, I want `tool` and `tool file.txt` to run `tool run ...` while other subcommands still work (click-default-group: invoke a command without an explicit subcommand name).",
+      "problem": "Without a subcommand, a Group either shows help (no_args_is_help), fails with 'Missing command.' (core.py:2034), or runs only its own callback. An unknown first word raises NoSuchCommand (core.py:2108-2111). So 'tool file.txt' can never mean 'tool run file.txt'.",
+      "public_interface": [
+        "click.Group(..., default_command: str | None = None)",
+        "Group.default_command attribute; @click.group(default_command='run') passes it through"
+      ],
+      "behavior": [
+        "With no remaining args, the default command is invoked with an empty arg list. no_args_is_help defaults to False when default_command is set and no_args_is_help is not passed.",
+        "If the first remaining token is not a registered command name, even after token_normalize_func, and does not look like an option, all remaining tokens go to the default command. `cli file.txt -n 3` with default 'run' behaves like `cli run file.txt -n 3`.",
+        "A token that names a real subcommand still dispatches to that subcommand.",
+        "ctx.invoked_subcommand is the default command's name when the group callback runs. The sub-context's info_name is that name, so default_map['run'] and the CLI_RUN_ auto envvar prefix apply.",
+        "The default subcommand_metavar becomes '[COMMAND] [ARGS]...' because the command token is optional, matching the existing invoke_without_command wording (core.py:1767-1768).",
+        "Group(chain=True, default_command=...) raises TypeError at construction."
+      ],
+      "interaction_rules": [
+        "Group-level options are parsed first, as today. An unknown option at group level still raises NoSuchOption, and `cli --help` still shows the group's help.",
+        "If invoke_without_command=True and default_command are both set, the default command is invoked whenever no subcommand is named. The group callback runs once before it, and the result callback receives the default command's return value.",
+        "An explicit no_args_is_help=True still wins: bare `cli` shows help."
+      ],
+      "traps": [
+        "Implementing the fallback only in Group.invoke misses the empty-args path. Group.parse_args leaves _protected_args empty and Group.invoke fails with 'Missing command.' before any resolve. The no-args branch has to dispatch to the default as well.",
+        "Leaving the no_args_is_help default derived only from invoke_without_command (core.py:1753-1754) makes bare `cli` raise NoArgsIsHelpError in Group.parse_args (core.py:2007-2008) instead of running the default.",
+        "Routing unknown tokens in Group.invoke instead of resolve_command breaks completion. _resolve_context calls resolve_command (shell_completion.py:714), so `cli file.txt --<TAB>` should offer the default command's options rather than stop at the group.",
+        "Option-looking tokens must keep the existing reparse path in resolve_command (core.py:2109-2110). Routing them to the default would hide group-level --help handling."
+      ],
+      "integration_points": [
+        "Group.parse_args",
+        "Group.invoke",
+        "Group.resolve_command",
+        "Group.__init__",
+        "shell_completion._resolve_context"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Group.parse_args",
+            "Group.invoke",
+            "Group.resolve_command",
+            "Group.__init__",
+            "Group.get_command"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_commands.py",
+        "tests/test_chain.py",
+        "tests/test_shell_completion.py",
+        "tests/test_basic.py"
+      ],
+      "new_test_file": "tests/test_default_command.py",
+      "novelty_rationale": "Group has only invoke_without_command and no_args_is_help (core.py:1730-1772). click-default-group is a separate subclass that rewrites args. This puts the behaviour in core Group with the usage metavar, the invoked_subcommand ordering and completion kept consistent.",
+      "estimated_gold_lines": 60
+    },
+    {
+      "slug": "option-help-sections",
+      "category": "help layout",
+      "title": "help_section= on Option: titled option groups in --help",
+      "demand_refs": [
+        "https://github.com/pallets/click/issues/373",
+        "https://github.com/click-contrib/click-option-group"
+      ],
+      "user_story": "As the author of a command with 30 options, I want `--host/--port` under 'Network' and `--user/--password` under 'Authentication' in --help, as with argparse add_argument_group (#373; click-option-group exists because 'option groups [are] missing in Click').",
+      "problem": "Command.format_options writes every option into one 'Options' section (core.py:1296-1306). Commands with many options cannot group them the way argparse's add_argument_group does, unless they override format_options or adopt a third-party command class.",
+      "public_interface": [
+        "click.Option(..., help_section: str | None = None)",
+        "Option.help_section attribute; @click.option(..., help_section='Network') and help_option(help_section=...) pass it through"
+      ],
+      "behavior": [
+        "Options without help_section are listed under 'Options:' as today. Each distinct help_section gets its own section titled with that string (write_heading adds ':').",
+        "The 'Options' section comes first. Named sections follow in the order their first visible option appears in get_params(ctx). Within a section, options keep declaration order.",
+        "Hidden options are skipped. A section whose options are all hidden is not written. If every visible option is in a named section, no empty 'Options:' heading is written.",
+        "The automatic --help option has no section and stays under 'Options' unless configured through help_option(help_section=...).",
+        "For a Group, all option sections come before the 'Commands' section."
+      ],
+      "interaction_rules": [
+        "Each section is a separate write_dl call, so column width is computed per section. This matches how 'Positional arguments' and 'Options' are aligned independently today (core.py:1315-1319 vs 1304-1306).",
+        "With no help_section set anywhere, help output is byte-for-byte unchanged.",
+        "help_section does not affect parsing, completion, error messages or Option.to_info_dict."
+      ],
+      "traps": [
+        "Grouping by iterating help_section values in sorted order instead of first-appearance order puts sections in alphabetical order, which is not the author's declared order.",
+        "Writing the 'Options' heading unconditionally produces an empty 'Options:' section when every visible option is grouped and add_help_option is False.",
+        "Building sections from self.params instead of get_params(ctx) drops the help option (added in get_params) or puts it in the wrong place.",
+        "Adding help_section to Option.to_info_dict breaks the exact info dicts in tests/test_info_dict.py."
+      ],
+      "integration_points": [
+        "Command.format_options",
+        "Group.format_options",
+        "Option.get_help_record",
+        "HelpFormatter.section"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Command.format_options",
+            "Group.format_options",
+            "Option.get_help_record",
+            "Command.get_params"
+          ]
+        },
+        {
+          "module": "src/click/formatting.py",
+          "interfaces": [
+            "HelpFormatter.section",
+            "HelpFormatter.write_dl"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/core.py",
+        "src/click/decorators.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_formatting.py",
+        "tests/test_options.py",
+        "tests/test_info_dict.py",
+        "tests/test_commands.py"
+      ],
+      "new_test_file": "tests/test_option_help_sections.py",
+      "novelty_rationale": "There is no help_group or section attribute in src/click. click-option-group and cloup provide separate OptionGroup decorators with relationship constraints. This is a minimal core attribute that plain click.Command honours, with no constraint system.",
+      "estimated_gold_lines": 55
+    },
+    {
+      "slug": "command-help-sections",
+      "category": "help layout",
+      "title": "help_section= on Command: grouped subcommand listings",
+      "demand_refs": [
+        "https://cloup.readthedocs.io/en/latest/",
+        "https://github.com/pallets/click/issues/373"
+      ],
+      "user_story": "As a maintainer of a CLI with many subcommands, I want --help to show them in labelled sections, as cloup's subcommand sections and rich-click's panels do, while staying on plain click.Group.",
+      "problem": "Group.format_commands always writes a single 'Commands' list (core.py:1978-2004). Large CLIs cannot split subcommands into labelled sections such as 'Database' and 'Deployment' without overriding format_commands.",
+      "public_interface": [
+        "click.Command(..., help_section: str | None = None)",
+        "Command.help_section attribute; @group.command(help_section='Database') passes it through"
+      ],
+      "behavior": [
+        "Commands with help_section=None are listed under 'Commands:'. Each distinct help_section gets a section titled with that string.",
+        "'Commands' comes first. Named sections follow in the order their first visible command appears in list_commands(ctx), which is sorted by name by default. Inside a section, commands keep list_commands order.",
+        "Hidden commands are skipped, and a section with no visible commands is not written.",
+        "The short-help truncation limit is computed once from the longest visible command name across all sections, so truncation does not depend on how commands are grouped.",
+        "Commands from CommandCollection sources and lazily loaded commands are grouped by their own help_section."
+      ],
+      "interaction_rules": [
+        "The section is a property of the command, not the registration. The same Command object added to two groups appears in the same section in both.",
+        "Each section is a separate write_dl call, so the column is aligned per section, as with the existing Options and Commands sections.",
+        "Without any help_section, Group help output is byte-for-byte unchanged."
+      ],
+      "traps": [
+        "Computing `limit` per section (core.py:1995) makes the same command's short help truncate differently depending on which other commands share its section. The limit must stay global.",
+        "Ordering sections by name instead of by first appearance in list_commands breaks groups that override list_commands to set a custom order.",
+        "Skipping get_command and reading self.commands directly loses CommandCollection sources and lazy groups, because format_commands relies on list_commands/get_command.",
+        "Adding help_section to Command.to_info_dict breaks tests/test_info_dict.py's exact dicts."
+      ],
+      "integration_points": [
+        "Group.format_commands",
+        "Group.list_commands",
+        "Group.get_command",
+        "Command.get_short_help_str"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Group.format_commands",
+            "Group.list_commands",
+            "Group.get_command",
+            "Command.get_short_help_str",
+            "Command.__init__"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_commands.py",
+        "tests/test_formatting.py",
+        "tests/test_info_dict.py"
+      ],
+      "new_test_file": "tests/test_command_help_sections.py",
+      "novelty_rationale": "There are no 'sections' or 'panels' in core.py. Cloup and rich-click implement them in their own Group classes and renderers. This adds a single Command attribute that the stock Group.format_commands honours.",
+      "estimated_gold_lines": 55
+    },
+    {
+      "slug": "exception-error-style",
+      "category": "error output",
+      "title": "error_style on ClickException to style the 'Error:' line",
+      "demand_refs": [
+        "https://github.com/pallets/click/issues/944"
+      ],
+      "user_story": "As a CLI author, I want all Click errors shown in red (or any style) by setting one attribute, as davidism proposed in #944 (call style() on the message, with style args on the exception).",
+      "problem": "ClickException.show and UsageError.show echo the 'Error: ...' line as plain text (src/click/exceptions.py:57-65, 87-111). Making errors red needs a subclass that overrides show for every exception type, including the ones Click raises internally.",
+      "public_interface": [
+        "ClickException.error_style: dict[str, Any] | None = None (class attribute; may be set on ClickException, on a subclass, or on an instance)"
+      ],
+      "behavior": [
+        "With error_style None everywhere (the default), output is byte-for-byte unchanged.",
+        "With `click.ClickException.error_style = {'fg': 'red', 'bold': True}`, every ClickException subclass (UsageError, BadParameter, NoSuchOption, FileError, ...) prints its 'Error: ...' line as click.style('Error: <formatted message>', fg='red', bold=True).",
+        "A subclass or instance can override the class-wide value. Setting error_style = None on a subclass disables styling for it.",
+        "Only the 'Error: ...' line is styled. The usage line and the \"Try 'cli --help' for help.\" hint printed by UsageError.show stay unstyled.",
+        "Styling is removed whenever colour is off. ClickException uses its cached show_color and UsageError uses ctx.color, so runner.invoke(..., color=False) shows plain text and color=True shows ANSI codes.",
+        "NoArgsIsHelpError output (help text only) and the 'Aborted!' message for Abort are not affected."
+      ],
+      "interaction_rules": [
+        "Styling is applied to the translated, formatted line, i.e. after format_message() and the gettext 'Error: {message}' template, so BadParameter and MissingParameter wording is preserved inside the styled text.",
+        "Normal attribute lookup decides the precedence: instance, then the most specific class, then ClickException.",
+        "Colour resolution is unchanged. It still comes from show_color captured at construction (exceptions.py:44-49) or from ctx.color for UsageError."
+      ],
+      "traps": [
+        "Importing style at module top of exceptions.py creates an import cycle, because termui imports Abort and UsageError from exceptions (src/click/termui.py:18-19). The import must be deferred or come from a module that does not import exceptions.",
+        "UsageError.show does not call ClickException.show, so styling added only in the base class leaves every usage error unstyled. Both show paths need it.",
+        "Styling self.message instead of format_message() drops the 'Invalid value for ...' and 'Missing option ...' text that subclasses build.",
+        "Styling the whole echo in UsageError.show also colours the usage block and the hint, which the request does not want."
+      ],
+      "integration_points": [
+        "ClickException.show",
+        "UsageError.show",
+        "Command.main"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/exceptions.py",
+          "interfaces": [
+            "ClickException.show",
+            "UsageError.show",
+            "ClickException.format_message",
+            "BadParameter.format_message"
+          ]
+        },
+        {
+          "module": "src/click/termui.py",
+          "interfaces": [
+            "style"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/exceptions.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_basic.py",
+        "tests/test_options.py",
+        "tests/test_exceptions/test_FileError.py",
+        "tests/test_termui.py"
+      ],
+      "new_test_file": "tests/test_exceptions/test_error_style.py",
+      "novelty_rationale": "exceptions.py has no styling hook. The issue (#944) is open and receptive. rich-click restyles errors through its own formatter, but plain click has nothing equivalent.",
+      "estimated_gold_lines": 50
+    },
+    {
+      "slug": "color-option-and-env",
+      "category": "terminal color policy",
+      "title": "click.color_option() plus NO_COLOR / FORCE_COLOR auto-detection",
+      "demand_refs": [
+        "https://kdeldycke.github.io/click-extra/colorize.html"
+      ],
+      "user_story": "As a CLI author, I want a one-line `@click.color_option()` giving users `--color always|never|auto`, and I want users' NO_COLOR / FORCE_COLOR environment preferences honoured automatically (click-extra colorize docs note that Click manages neither).",
+      "problem": "Colour is decided only by isatty, by an explicit color argument, or by ctx.color (_compat.py:502-513, globals.py:54-67). NO_COLOR and FORCE_COLOR are ignored, and there is no standard `--color [auto|always|never]` option. Each CLI wires ctx.color by hand.",
+      "public_interface": [
+        "click.color_option(*param_decls: str, **kwargs) -> Callable[[FC], FC]   # default decl '--color'",
+        "_compat.should_strip_ansi(stream=None, color=None) now consults NO_COLOR and FORCE_COLOR when color is None"
+      ],
+      "behavior": [
+        "color_option adds an eager option `--color [auto|always|never]` (Choice, case-insensitive) with default 'auto' and expose_value=False. Its help is 'Control colored output.'.",
+        "'always' sets ctx.color = True and 'never' sets ctx.color = False. 'auto' leaves ctx.color as it was (normally None, i.e. autodetect).",
+        "Subcommands inherit the choice. `cli --color never sub` produces unstyled secho output in sub, even when color=True is requested from the test runner.",
+        "Help output honours it when --color comes before --help: `cli --color always --help` shows styled help on a non-tty.",
+        "When no explicit colour is given (color=None) and the stream is not a pager writer, should_strip_ansi returns True if NO_COLOR is set to a non-empty value. Otherwise it returns False if FORCE_COLOR is set to a non-empty value, and falls back to the isatty check otherwise. click.echo(style('x', fg='red'), file=io.StringIO()) keeps the ANSI codes under FORCE_COLOR=1.",
+        "An explicit colour (echo(color=...), ctx.color True/False, or --color always/never) always beats NO_COLOR/FORCE_COLOR."
+      ],
+      "interaction_rules": [
+        "Precedence: explicit color argument > ctx.color (set by --color or Context(color=...)) > NO_COLOR > FORCE_COLOR > isatty/Jupyter detection.",
+        "Empty-string NO_COLOR or FORCE_COLOR is treated as unset. This matches click's convention that empty env vars are unset (core.py:2709-2714) and the no-color.org definition.",
+        "Other kwargs follow the setdefault pattern of help_option/confirmation_option, so envvar='MYAPP_COLOR' or other declarations can be passed."
+      ],
+      "traps": [
+        "Mapping 'auto' to ctx.color = False (or True) destroys tty autodetection and overrides a parent context's explicit colour. 'auto' must leave ctx.color untouched.",
+        "Making the option non-eager means --help is handled before it, and the subcommand context copies parent.color at creation (core.py:498-499). The colour has to be set while the parent parses, which only works if the option is eager.",
+        "Putting the env check in resolve_color_default turns color=None into True/False before echo runs. CliRunner then stops stripping ANSI under FORCE_COLOR and existing tests break in CI environments that export FORCE_COLOR. CliRunner deliberately patches should_strip_ansi (testing.py:505-516), so the env logic belongs inside _compat.should_strip_ansi's autodetect branch.",
+        "The pager writer short-circuit (_compat.py:508-511) must stay ahead of the env checks, because the pager strips ANSI itself."
+      ],
+      "integration_points": [
+        "_compat.should_strip_ansi",
+        "Context.__init__",
+        "help_option",
+        "utils.echo"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/_compat.py",
+          "interfaces": [
+            "should_strip_ansi"
+          ]
+        },
+        {
+          "module": "src/click/decorators.py",
+          "interfaces": [
+            "help_option",
+            "option",
+            "confirmation_option"
+          ]
+        },
+        {
+          "module": "src/click/globals.py",
+          "interfaces": [
+            "resolve_color_default"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/decorators.py",
+        "src/click/_compat.py",
+        "src/click/__init__.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_utils/test_echo.py",
+        "tests/test_termui.py",
+        "tests/test_compat.py",
+        "tests/test_basic.py"
+      ],
+      "new_test_file": "tests/test_color_option.py",
+      "novelty_rationale": "Grepping for NO_COLOR/FORCE_COLOR in src/click finds nothing, and there is no color_option decorator. click-extra has a colour option, but plain click users get no env-var handling. This changes the core autodetection that every echo uses.",
+      "estimated_gold_lines": 60
+    },
+    {
+      "slug": "option-value-separator",
+      "category": "multi-value options",
+      "title": "separator= on Option: accept --tag a,b,c as several values",
+      "demand_refs": [
+        "https://github.com/pallets/click/issues/2771",
+        "https://kdeldycke.github.io/click-extra/types.html"
+      ],
+      "user_story": "As a CLI user, I want `--tags alpha,gamma` (and `TAGS=alpha,gamma`) to give ('alpha', 'gamma'), with each item validated by the option's type (#2771; click-extra lists MultiChoice because 'click ships no equivalent').",
+      "problem": "An option taking several values must be repeated (`--tag a --tag b`) or post-processed in a callback (#2771). Env vars split on whitespace via split_envvar_value (core.py:3616-3623), default_map strings are only split when nargs != 1 (core.py:2553-2556), and nothing splits command-line values. A comma-list option behaves differently for each source unless every author writes the same callback.",
+      "public_interface": [
+        "click.Option(..., separator: str | None = None)",
+        "Option.separator attribute"
+      ],
+      "behavior": [
+        "With separator=',', the option is multi-valued: the value is a tuple and the default is (). `--tag a,b --tag c` gives ('a', 'b', 'c'). Each occurrence is split, and occurrences are concatenated in order.",
+        "Each item is converted by the option's type. With type=click.Choice(['x', 'y']), `--tag x,z` fails with \"Invalid value for '--tag': 'z' is not one of 'x', 'y'.\".",
+        "An env var value is split on the separator, not on whitespace. TAG='a b,c' gives ('a b', 'c').",
+        "String values from default_map, a string default, and a prompted answer are split on the separator. A list or tuple default is used item by item without further splitting.",
+        "The help metavar is '<M>[<sep><M>...]', e.g. '--tag TEXT[,TEXT...]'.",
+        "separator combined with is_flag, count, or nargs != 1 raises TypeError at construction. An empty-string separator raises ValueError."
+      ],
+      "interaction_rules": [
+        "Source precedence is unchanged (command line > env > default_map > default > prompt). Splitting applies to whichever source wins, so get_parameter_source still reports a single source.",
+        "multiple=True together with a separator is allowed and behaves the same, because a separator already implies repeatable occurrences.",
+        "Shell completion completes the segment after the last separator and keeps the earlier segments as a prefix. `--tag x,<TAB>` with Choice(['x', 'y']) offers 'x,x' and 'x,y'."
+      ],
+      "traps": [
+        "Splitting in consume_value only covers command-line and env values. A prompted answer reaches type_cast_value through prompt_for_value's value_proc (core.py:3551) as a bare string, and iterating it yields single characters. The split has to happen where every source converges, in type casting.",
+        "Leaving Option.value_from_envvar on its whitespace split_envvar_value path (core.py:3617-3619) makes TAG='a,b' a single item 'a,b', or splits 'a b' wrongly.",
+        "Passing the whole incomplete 'x,y' to Choice.shell_complete finds no prefix match, so completion goes silent after the first comma. Only the last segment should be matched, with the prefix re-attached.",
+        "Treating separator as plain multiple without splitting default_map strings sends a str through check_iter, which iterates its characters, so default_map={'tag': 'a,b'} becomes ('a', ',', 'b')."
+      ],
+      "integration_points": [
+        "Option.value_from_envvar",
+        "Parameter.consume_value",
+        "Parameter.type_cast_value",
+        "Parameter.shell_complete",
+        "Option.add_to_parser",
+        "Parameter.make_metavar"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Option.value_from_envvar",
+            "Parameter.consume_value",
+            "Parameter.type_cast_value",
+            "Parameter.shell_complete",
+            "Option.add_to_parser",
+            "Option._validate",
+            "Parameter.make_metavar"
+          ]
+        },
+        {
+          "module": "src/click/types.py",
+          "interfaces": [
+            "ParamType.split_envvar_value",
+            "Choice.shell_complete"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_options.py",
+        "tests/test_defaults.py",
+        "tests/test_shell_completion.py",
+        "tests/test_basic.py"
+      ],
+      "new_test_file": "tests/test_option_separator.py",
+      "novelty_rationale": "No separator parameter exists in core.py or parser.py. click-extra's MultiChoice is a type limited to choices and does not unify env, default_map, prompt and completion behaviour for arbitrary types. The space-separated variant the maintainer objected to (it needs parser changes) is deliberately out of scope.",
+      "estimated_gold_lines": 90
+    },
+    {
+      "slug": "mutually-exclusive-params",
+      "category": "cross-parameter validation",
+      "title": "mutually_exclusive= on Command: reject conflicting explicit parameters",
+      "demand_refs": [
+        "https://gist.github.com/thebopshoobop/51c4b6dce31017e797699030e3975dbf",
+        "https://cloup.readthedocs.io/en/latest/pages/constraints.html"
+      ],
+      "user_story": "As a CLI author, I want to declare groups of parameters that cannot be given together and get a standard usage error, without hand-written counting helpers (gist exclusive() helper; cloup constraints).",
+      "problem": "Click has no way to declare that `--json` and `--yaml` cannot be used together. Users write helpers that count set flags and raise UsageError (the gist warns its helper breaks when names are reused across contexts), or they adopt cloup's constraint system, which requires cloup.Command.",
+      "public_interface": [
+        "click.Command(..., mutually_exclusive: cabc.Sequence[cabc.Sequence[str]] = ())",
+        "Command.mutually_exclusive: tuple[tuple[str, ...], ...]; @click.command(mutually_exclusive=[('json', 'yaml', 'csv')]) passes it through"
+      ],
+      "behavior": [
+        "Each inner sequence names parameters by their Python name (Parameter.name). After all parameters are processed in Command.parse_args, if two or more members of a group were explicitly provided, parsing fails with a UsageError (exit code 2, usage line shown).",
+        "'Explicitly provided' means ctx.get_parameter_source(name) is COMMANDLINE, ENVIRONMENT or PROMPT, i.e. `source < ParameterSource.DEFAULT_MAP`, the convention in ParameterSource's docstring (core.py:186-188). Values from default_map or defaults never conflict.",
+        "The message is \"{hint_a} cannot be used together with {hint_b}.\". The hints come from Parameter.get_error_hint(ctx), for example \"'--json' cannot be used together with '-y' / '--yaml'.\". The two names are the first two explicit members in the group's declared order.",
+        "Groups are checked in declaration order, and only the first violation is reported.",
+        "A name that is not a parameter of the command raises TypeError naming it when the command parses.",
+        "A boolean flag given explicitly as its false spelling (`--no-json`) still counts as provided."
+      ],
+      "interaction_rules": [
+        "Eager parameters that exit (--help, --version) run before the check, so `cli --json --yaml --help` shows help.",
+        "Under ctx.resilient_parsing (shell completion) no conflict error is raised.",
+        "A missing required parameter or a conversion error raised while parameters are processed is reported before any conflict, because the check runs after the processing loop."
+      ],
+      "traps": [
+        "Checking truthiness of ctx.params values instead of sources misses explicit falsy values (`--no-json`, `--count 0`). It also flags params whose default is truthy even though the user never passed them.",
+        "Treating DEFAULT_MAP as explicit makes a config-provided `json: true` conflict with a command-line `--yaml`. Click's own explicitness boundary (deprecation warning at core.py:2794-2798) excludes default_map.",
+        "Several options can share one name (feature-switch groups arbitrated in handle_parse_result, core.py:2820-2847). Iterating Parameter objects instead of names makes two spellings of one destination conflict with each other. The group members are names, resolved through ctx.get_parameter_source.",
+        "Running the check before the UNSET-to-None loop and the arbitration finishes can read a provisional source from a parameter that lost arbitration. It must run after every parameter's handle_parse_result has completed."
+      ],
+      "integration_points": [
+        "Command.parse_args",
+        "Context.get_parameter_source",
+        "Parameter.get_error_hint",
+        "Parameter.handle_parse_result"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Command.parse_args",
+            "Context.get_parameter_source",
+            "Parameter.get_error_hint",
+            "Option.get_error_hint",
+            "Parameter.handle_parse_result",
+            "ParameterSource"
+          ]
+        },
+        {
+          "module": "src/click/exceptions.py",
+          "interfaces": [
+            "UsageError"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_options.py",
+        "tests/test_commands.py",
+        "tests/test_shell_completion.py",
+        "tests/test_defaults.py"
+      ],
+      "new_test_file": "tests/test_mutually_exclusive.py",
+      "novelty_rationale": "Grepping for 'mutually' or 'constraint' in src/click finds nothing. Cloup's constraints need cloup.Command and click-option-group needs its own group decorators. This is a single declarative Command argument based on click's existing ParameterSource explicitness rule.",
+      "estimated_gold_lines": 55
+    },
+    {
+      "slug": "config-file-option",
+      "category": "configuration",
+      "title": "click.config_option(): load a JSON config file into default_map",
+      "demand_refs": [
+        "https://gist.github.com/jwodder/8ce218892331229c9116ed6c3e16a5bb"
+      ],
+      "user_story": "As a CLI author, I want `@click.config_option(default=<app-dir path>)` so users can set any option's default in a JSON file, with subcommand sections, without me reimplementing the default_map plumbing.",
+      "problem": "Click only offers the low-level Context.default_map. Every app that wants `--config FILE` writes an eager callback that reads the file and fills ctx.default_map, often mutating the shared context_settings dict, breaking subcommand sections, or failing on a missing default path (jwodder gist and blog post).",
+      "public_interface": [
+        "click.config_option(*param_decls: str, **kwargs) -> Callable[[FC], FC]   # default decl '--config'; defaults: is_eager=True, expose_value=False, type=click.Path(dir_okay=False), help='Read option defaults from a JSON file.'"
+      ],
+      "behavior": [
+        "The file must contain a JSON object. Its keys are parameter names, and nested objects are sections for subcommands keyed by subcommand name, the same shape as default_map.",
+        "Loaded values become ctx.default_map entries. They are used when a parameter is not given on the command line or by env var, and get_parameter_source reports DEFAULT_MAP.",
+        "An existing ctx.default_map (from context_settings or inherited from a parent group) is merged with the file. Nested mappings are merged recursively, and file values win on conflicts.",
+        "A path given on the command line or by env var that does not exist fails with BadParameter \"Invalid value for '--config': File 'x.json' does not exist.\". A missing file at the option's default path is silently ignored.",
+        "Invalid JSON or a non-object top level fails with BadParameter \"Invalid value for '--config': Could not load config file 'x.json': <reason>\".",
+        "Applied on a group, the file configures that group's parameters and, through sections, its subcommands. `{\"verbose\": true, \"sync\": {\"jobs\": 4}}` gives the group --verbose=True and `cli sync` jobs=4."
+      ],
+      "interaction_rules": [
+        "Precedence is unchanged: command line > env var > config file (default_map) > parameter default > prompt-on-missing.",
+        "Because the option is eager, it is processed before all non-eager parameters, so they see the merged default_map. Subcommand contexts derive their section from parent.default_map.get(info_name) when they are created (core.py:393-397), which happens after the group's parse.",
+        "String values for multi-value parameters are split the way default_map strings already are (core.py:2553-2556). Lists are used as-is."
+      ],
+      "traps": [
+        "Updating ctx.default_map in place mutates the dict passed via context_settings, because make_context copies context_settings shallowly into Context kwargs (core.py:1330-1365). The values then leak into the next invocation of the same command object. A new merged dict must be assigned.",
+        "Using click.Path(exists=True) as the type makes a missing *default* config path a hard error on every run. Existence has to be checked in the callback, using ctx.get_parameter_source to tell DEFAULT from COMMANDLINE/ENVIRONMENT.",
+        "Replacing ctx.default_map instead of merging drops the section a subcommand inherited from its parent's default_map, as well as app-provided defaults.",
+        "Leaving is_eager False means parameters declared before --config, or given earlier on the command line, are processed before the map is loaded (iter_params_for_processing, core.py:147-171) and silently ignore the file."
+      ],
+      "integration_points": [
+        "Context.lookup_default",
+        "Parameter.consume_value",
+        "Context.__init__",
+        "iter_params_for_processing",
+        "Context.get_parameter_source"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/decorators.py",
+          "interfaces": [
+            "option",
+            "help_option",
+            "confirmation_option"
+          ]
+        },
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Context.lookup_default",
+            "Parameter.consume_value",
+            "Context.get_parameter_source",
+            "Command.make_context"
+          ]
+        },
+        {
+          "module": "src/click/types.py",
+          "interfaces": [
+            "Path"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/decorators.py",
+        "src/click/__init__.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_defaults.py",
+        "tests/test_options.py",
+        "tests/test_context.py",
+        "tests/test_basic.py"
+      ],
+      "new_test_file": "tests/test_config_option.py",
+      "novelty_rationale": "src/click has no config loader, only get_app_dir and default_map. click-extra's config_option is a large multi-format system with auto-discovery. This is a minimal stdlib-only core decorator that fixes the default_map sharing and missing-default pitfalls the gist runs into.",
+      "estimated_gold_lines": 70
+    },
+    {
+      "slug": "choice-enum-by-value",
+      "category": "parameter types",
+      "title": "Choice(enum_by_value=True): match Enum members by their values",
+      "demand_refs": [
+        "https://github.com/kdeldycke/click-extra"
+      ],
+      "user_story": "As a CLI author passing an Enum to click.Choice, I want users to type the member values ('json', 'yaml') everywhere: parsing, help, prompts, errors and completion (click-extra EnumChoice).",
+      "problem": "Choice.normalize_choice always uses Enum.name (types.py:416), so `Choice(Format)` makes users type 'TEXT' rather than the value 'text'. Help defaults also show the member name (core.py:3471-3472), and prompts list repr-like 'Format.TEXT' strings (termui.py:117-118).",
+      "public_interface": [
+        "click.Choice(choices, case_sensitive: bool = True, *, enum_by_value: bool = False)",
+        "Choice.enum_by_value attribute"
+      ],
+      "behavior": [
+        "With enum_by_value=True, Enum members normalize to str(member.value) instead of member.name. Non-Enum choices are unaffected. `--fmt json` with class Fmt(Enum): JSON='json' returns Fmt.JSON.",
+        "The metavar, invalid-choice message, missing message and shell completion all use the values: \"'xml' is not one of 'json', 'yaml'.\", metavar '[json|yaml]', completion of 'j' gives 'json'.",
+        "case_sensitive=False casefolds the value, so 'JSON' is accepted.",
+        "Int-valued enums match on the string form: '1' selects Level.LOW with value 1.",
+        "The help default for an option whose default is an enum member shows the value when the option's type is a by-value Choice: '[default: json]'.",
+        "The prompt's choice list shows the normalized values: 'Format (json, yaml): '. An empty answer with an enum default returns that member."
+      ],
+      "interaction_rules": [
+        "Every value source goes through Choice.convert, so env var, default_map and string defaults all match on values. A default given as an enum member converts to itself.",
+        "ctx.token_normalize_func still applies after the value is taken, as in normalize_choice today.",
+        "Choice.to_info_dict is unchanged, and with enum_by_value=False behaviour is identical to today."
+      ],
+      "traps": [
+        "Changing only normalize_choice leaves Option.get_help_extra printing default_value.name (core.py:3471-3472), so help says 'default: JSON' while parsing only accepts 'json'.",
+        "termui._build_prompt lists `map(str, type.choices)` (termui.py:117-118), which renders 'Fmt.JSON'. The prompt must list the normalized values for by-value choices or it advertises inputs that fail.",
+        "Comparing the raw member.value with the input string fails for non-str values (int enums). Normalization must stringify the value, as it does for non-enum choices.",
+        "Adding enum_by_value to Choice.to_info_dict breaks the exact dicts in tests/test_info_dict.py."
+      ],
+      "integration_points": [
+        "Choice.normalize_choice",
+        "Choice.convert",
+        "Option.get_help_extra",
+        "termui._build_prompt",
+        "Choice.shell_complete"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/types.py",
+          "interfaces": [
+            "Choice.normalize_choice",
+            "Choice.convert",
+            "Choice.get_metavar",
+            "Choice.get_invalid_choice_message",
+            "Choice.shell_complete"
+          ]
+        },
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Option.get_help_extra",
+            "Option.prompt_for_value"
+          ]
+        },
+        {
+          "module": "src/click/termui.py",
+          "interfaces": [
+            "prompt"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/types.py",
+        "src/click/core.py",
+        "src/click/termui.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_types/test_Choice.py",
+        "tests/test_options.py",
+        "tests/test_info_dict.py",
+        "tests/test_utils/test_prompt.py",
+        "tests/test_shell_completion.py"
+      ],
+      "new_test_file": "tests/test_types/test_Choice_enum_value.py",
+      "novelty_rationale": "Choice matches Enum only by name (types.py:416). click-extra's EnumChoice is a separate type with aliases. This adds a flag on the core type and keeps help defaults and prompts consistent, which a subclass that only overrides normalize_choice cannot fix.",
+      "estimated_gold_lines": 55
+    },
+    {
+      "slug": "help-styles",
+      "category": "help styling",
+      "title": "Context(help_styles=...) to colour headings and terms in --help",
+      "demand_refs": [
+        "https://github.com/click-contrib/click-help-colors"
+      ],
+      "user_story": "As a CLI author, I want bold or coloured 'Usage:'/'Options:' headings and coloured option and command names in --help via a context setting (click-help-colors: 'Colorization of help messages in Click').",
+      "problem": "HelpFormatter writes plain text only (formatting.py:204-271), and Context.make_formatter passes only widths (core.py:638-650). Coloured section headings and option names need click-help-colors, rich-click or a custom formatter_class.",
+      "public_interface": [
+        "click.Context(..., help_styles: cabc.Mapping[str, cabc.Mapping[str, t.Any]] | None = None)   # keys 'heading' and 'term', values are click.style kwargs; inherited from parent",
+        "click.HelpFormatter(indent_increment=2, width=None, max_width=None, *, heading_style: Mapping | None = None, term_style: Mapping | None = None)"
+      ],
+      "behavior": [
+        "heading_style is applied with click.style to each section heading including its colon ('Options:', 'Commands:', 'Positional arguments:', custom sections) and to the default 'Usage:' prefix.",
+        "term_style is applied to the first column of every definition list, i.e. option specs, argument metavars and command names. The description column is unstyled.",
+        "Column alignment and wrapping use visible width, so styled help with ANSI stripped is identical to the unstyled help at the same terminal width.",
+        "Styles show only when colour is enabled. --help is echoed with ctx.color, so runner.invoke(cli, ['--help'], color=True) contains ANSI codes and color=False gives byte-identical plain output.",
+        "Subcommand contexts inherit help_styles from the parent unless they set their own, in the same way as color.",
+        "An explicit prefix passed to HelpFormatter.write_usage is written as given and is not restyled."
+      ],
+      "interaction_rules": [
+        "Usage lines printed inside usage errors come from ctx.get_usage(), which uses the same formatter, so the 'Usage:' prefix is styled there too and stripped by echo with ctx.color when colour is off.",
+        "Context.make_formatter passes heading_style/term_style only when help_styles is set, so custom formatter_class subclasses with the old __init__ signature keep working.",
+        "Unknown keys in help_styles are ignored, while invalid style arguments raise the same error click.style raises."
+      ],
+      "traps": [
+        "Measuring row widths before styling and padding the styled strings with len() misaligns columns. Padding and the col_max comparison must use term_len on the styled term (formatting.py:248-256), and widths must be measured on what is actually written.",
+        "Always passing new keyword arguments from Context.make_formatter breaks every user formatter_class whose __init__ only accepts width/max_width.",
+        "Styling the heading before write_heading appends ':' leaves the colon unstyled, or doubles it if the style is added around 'Options:' and the colon is appended again.",
+        "Not inheriting help_styles in Context.__init__ makes subcommand --help unstyled while the group's help is styled."
+      ],
+      "integration_points": [
+        "Context.make_formatter",
+        "HelpFormatter.write_heading",
+        "HelpFormatter.write_dl",
+        "HelpFormatter.write_usage",
+        "Context.__init__"
+      ],
+      "builds_on": [
+        {
+          "module": "src/click/formatting.py",
+          "interfaces": [
+            "HelpFormatter.__init__",
+            "HelpFormatter.write_heading",
+            "HelpFormatter.write_dl",
+            "HelpFormatter.write_usage",
+            "measure_table"
+          ]
+        },
+        {
+          "module": "src/click/core.py",
+          "interfaces": [
+            "Context.make_formatter",
+            "Context.__init__"
+          ]
+        },
+        {
+          "module": "src/click/termui.py",
+          "interfaces": [
+            "style"
+          ]
+        }
+      ],
+      "source_files_to_modify": [
+        "src/click/formatting.py",
+        "src/click/core.py"
+      ],
+      "source_files_to_add": [],
+      "regression_test_files": [
+        "tests/test_formatting.py",
+        "tests/test_context.py",
+        "tests/test_commands.py",
+        "tests/test_basic.py"
+      ],
+      "new_test_file": "tests/test_help_styles.py",
+      "novelty_rationale": "HelpFormatter has no style hooks, and core.py calls style() only for deprecation messages. click-help-colors and rich-click provide their own Group/Command classes or renderers. This is a small context setting for the stock formatter that keeps alignment and colour stripping correct.",
+      "estimated_gold_lines": 60
+    }
+  ]
+}

@@ -1,0 +1,251 @@
+{
+  "path": "src/click/exceptions.py",
+  "claim": {
+    "summary": "src/click/exceptions.py defines Click's exception hierarchy. ClickException (exit_code 1) is the base for user-facing errors. It has format_message() and show(). UsageError (exit_code 2) prints usage and a help hint. Its subclasses are BadParameter, MissingParameter, NoSuchOption, NoSuchCommand, BadOptionUsage, BadArgumentUsage and NoArgsIsHelpError. FileError is a direct ClickException subclass. Abort and Exit are NOT ClickExceptions: they derive from RuntimeError and are control-flow signals. Command.main in core.py (about lines 1571-1612) catches them. In standalone mode it calls e.show and sys.exit(e.exit_code). In non-standalone mode it re-raises ClickException and Abort, and returns Exit.exit_code.",
+    "interfaces": [
+      {
+        "name": "ClickException",
+        "behavior": "Base class (line 35). __init__(message) calls Exception.__init__, caches show_color = resolve_color_default() at construction (the context is gone by the time show runs), and stores message. Class attribute exit_code = 1. format_message() returns self.message. __str__ returns self.message. show(file=None) writes 'Error: {message}' via echo to file, or to get_text_stderr() if file is None, using the cached show_color.",
+        "edge_cases": [
+          "file=None means stderr",
+          "message is not validated, so a non-str message would break __str__"
+        ],
+        "raises": []
+      },
+      {
+        "name": "ClickException.format_message",
+        "behavior": "Returns self.message. Subclasses override it to decorate the message. show() uses it.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "ClickException.show",
+        "behavior": "Prints 'Error: <format_message()>' to the given file or to stderr. Color comes from the value cached at construction.",
+        "edge_cases": [
+          "file None -> stderr"
+        ],
+        "raises": []
+      },
+      {
+        "name": "UsageError",
+        "behavior": "Line 68. exit_code = 2. __init__(message, ctx=None) stores ctx and sets cmd = ctx.command if ctx else None. show() prints, in order: ctx.get_usage(), then a \"Try '<command_path> <longest help option name>' for help.\" line only if the command has a help option, then 'Error: <message>'. Color comes from ctx.color. Without a ctx it prints only the Error line, with color=None.",
+        "edge_cases": [
+          "ctx None -> no usage and no hint",
+          "help option disabled (get_help_option returns None) -> no hint",
+          "longest help name is chosen with max(key=len)"
+        ],
+        "raises": []
+      },
+      {
+        "name": "UsageError.show",
+        "behavior": "Prints usage, the optional help hint, then 'Error: ...' to file or stderr. Uses ctx.color, not the cached show_color.",
+        "edge_cases": [
+          "ctx None",
+          "no help option"
+        ],
+        "raises": []
+      },
+      {
+        "name": "BadParameter",
+        "behavior": "Line 114. __init__(message, ctx=None, param=None, param_hint=None). format_message() uses param_hint if it is not None. Otherwise it uses param.get_error_hint(ctx). If neither is set it returns 'Invalid value: {message}'. Otherwise it returns 'Invalid value for {hint}: {message}'. A sequence hint is joined with ' / ' with each item repr-quoted (_join_param_hints). A str hint is used as-is.",
+        "edge_cases": [
+          "both param and param_hint -> param_hint wins",
+          "neither set -> 'Invalid value: msg'",
+          "empty-list hint -> empty string"
+        ],
+        "raises": []
+      },
+      {
+        "name": "BadParameter.format_message",
+        "behavior": "Builds 'Invalid value for X: msg', or 'Invalid value: msg' when there is no hint and no param.",
+        "edge_cases": [
+          "see BadParameter"
+        ],
+        "raises": []
+      },
+      {
+        "name": "MissingParameter",
+        "behavior": "Line 159. __init__(message=None, ctx=None, param=None, param_hint=None, param_type=None). A None message becomes ''. format_message builds 'Missing {argument|option|parameter|<custom>} {hint}.{ msg}'. param_type falls back to param.param_type_name. If param is set, param.type.get_missing_message(param, ctx) is appended to the message: joined with '. ' if the message is non-empty, used alone otherwise. An unknown param_type is formatted as 'Missing {param_type}'. __str__ returns the message, or 'Missing parameter: {param.name}' if the message is empty.",
+        "edge_cases": [
+          "empty message -> __str__ uses the param name, which is None if there is no param",
+          "param_type None and no param -> 'Missing None'",
+          "hint omitted -> no hint text"
+        ],
+        "raises": []
+      },
+      {
+        "name": "MissingParameter.format_message",
+        "behavior": "See MissingParameter. Translates the known param types and appends the type's missing message (for example a Choice lists its choices).",
+        "edge_cases": [
+          "unknown param_type"
+        ],
+        "raises": []
+      },
+      {
+        "name": "MissingParameter.__str__",
+        "behavior": "Returns self.message, or a 'Missing parameter: name' fallback when the message is empty.",
+        "edge_cases": [
+          "param None -> 'Missing parameter: None'"
+        ],
+        "raises": []
+      },
+      {
+        "name": "NoSuchOption",
+        "behavior": "Line 232. __init__(option_name, message=None, possibilities=None, ctx=None). The default message is \"No such option 'x'.\" Possibilities are filtered with difflib.get_close_matches(option_name, possibilities) (default n=3, cutoff 0.6). format_message appends a sorted 'Did you mean ...?' suggestion (ngettext singular/plural) when matches exist. Stores option_name and possibilities (None when empty).",
+        "edge_cases": [
+          "falsy possibilities -> None",
+          "no close match -> empty list, no suggestion"
+        ],
+        "raises": []
+      },
+      {
+        "name": "NoSuchCommand",
+        "behavior": "Line 268, added in 8.4.0. Same pattern as NoSuchOption: command_name, default message \"No such command 'x'.\", fuzzy possibilities via difflib, and the same format_message suggestion.",
+        "edge_cases": [
+          "same as NoSuchOption"
+        ],
+        "raises": []
+      },
+      {
+        "name": "BadOptionUsage",
+        "behavior": "Line 304. __init__(option_name, message, ctx=None). A UsageError that stores option_name. It is raised when an option is used incorrectly, such as the wrong number of values.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "BadArgumentUsage",
+        "behavior": "Line 323. UsageError subclass with no overrides. Raised when an argument is used incorrectly, such as the wrong number of values.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "NoArgsIsHelpError",
+        "behavior": "Line 332. __init__(ctx) calls super().__init__(ctx.get_help(), ctx=ctx), so the message is the full help text. show() echoes format_message() to stderr (err=True) with ctx.color, without the 'Error:' prefix or usage. It inherits exit_code 2.",
+        "edge_cases": [
+          "ctx is required",
+          "show ignores a file argument's usage but passes file through to echo; err=True is used when file is None"
+        ],
+        "raises": []
+      },
+      {
+        "name": "FileError",
+        "behavior": "Line 342. __init__(filename, hint=None). A None hint becomes 'unknown error'. ui_filename = format_filename(filename) (surrogate-safe) and the raw filename is stored. format_message returns \"Could not open file {ui_filename!r}: {message}\". exit_code is inherited as 1.",
+        "edge_cases": [
+          "a surrogate filename renders as the replacement char U+FFFD",
+          "hint None -> 'unknown error'"
+        ],
+        "raises": []
+      },
+      {
+        "name": "FileError.format_message",
+        "behavior": "Returns \"Could not open file '<ui_filename>': <hint>\".",
+        "edge_cases": [
+          "see FileError"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Abort",
+        "behavior": "Line 362. A RuntimeError subclass, not a ClickException, with no custom attributes. In standalone mode, main prints 'Aborted!' (via _echo_aborted) and exits with code 1. In non-standalone mode it re-raises. KeyboardInterrupt and EOFError are converted into Abort in non-standalone mode.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "Exit",
+        "behavior": "Line 366. A RuntimeError subclass with __slots__ ('exit_code',). __init__(code=0) sets exit_code. It does not call super().__init__. Context.exit raises it (core.py:831). In non-standalone mode main returns e.exit_code. In standalone mode it calls sys.exit(code).",
+        "edge_cases": [
+          "code is not validated",
+          "default 0",
+          "no message or args, so str(e) is empty"
+        ],
+        "raises": []
+      }
+    ],
+    "error_conventions": "ClickException subclasses are user-facing errors. main() prints them as 'Error: <msg>' and exits with exit_code. exit_code is 1 for ClickException and FileError, and 2 for UsageError and all its subclasses. UsageError, BadParameter, MissingParameter and the NoSuch*/BadOption* classes also print usage and a help hint when a ctx is attached. Abort and Exit are RuntimeError control-flow signals, not ClickExceptions. Message style is a capitalized sentence, usually ending with a period for the NoSuch* and Missing messages. User-visible strings go through gettext (_ and ngettext). Parameter names are quoted with repr, and multiple hints are joined with ' / '. Core also raises UsageError(message, ctx) from Context.fail (core.py:817) and Exit from Context.exit (core.py:831).",
+    "examples": [
+      {
+        "description": "Test: FileError message with a surrogate filename",
+        "code": "message = click.FileError(filename=\"\\udcff\").format_message()\nassert message == \"Could not open file '\ufffd': unknown error\"",
+        "source_path": "tests/test_exceptions/test_FileError.py",
+        "line_start": 4,
+        "line_end": 6
+      },
+      {
+        "description": "Docs: handling Click exceptions manually in non-standalone mode",
+        "code": "try:\n    command.main([\"command-name\", \"args\", \"go\", \"here\"], standalone_mode=False)\nexcept click.Abort:\n    click.echo(\"Bye!\", err=True)\n    raise SystemExit(1)\nexcept click.ClickException as e:\n    e.show()\n    raise SystemExit(e.exit_code)",
+        "source_path": "docs/exceptions.md",
+        "line_start": 77,
+        "line_end": 88
+      },
+      {
+        "description": "Core dispatch of ClickException in main()",
+        "code": "except ClickException as e:\n    if not standalone_mode:\n        raise\n    report, exit_code = e.show, e.exit_code",
+        "source_path": "src/click/core.py",
+        "line_start": 1597,
+        "line_end": 1601
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_exceptions/test_FileError.py",
+        "how_it_asserts": "A single test, test_file_error_surrogates. It builds click.FileError(filename='\\udcff') and compares format_message() to an exact string with the replacement character and 'unknown error'. Plain assert, no fixtures. This is the only test I read. Other exceptions are probably covered indirectly in tests/test_basic.py, test_arguments.py and similar files, which I did not check."
+      }
+    ],
+    "extension_points": [
+      {
+        "name": "ClickException subclassing (override exit_code / format_message / show)",
+        "path": "src/click/exceptions.py",
+        "line": 35,
+        "what_could_attach": "Custom user-facing errors: subclass ClickException, set exit_code, override format_message or show. Command.main handles them automatically (core.py:1597)."
+      },
+      {
+        "name": "UsageError.show",
+        "path": "src/click/exceptions.py",
+        "line": 87,
+        "what_could_attach": "Custom usage rendering, such as a different help hint or JSON output."
+      },
+      {
+        "name": "Command.main exception dispatch",
+        "path": "src/click/core.py",
+        "line": 1571,
+        "what_could_attach": "A new handled exception type, or a global error reporter, added to the except chain."
+      },
+      {
+        "name": "_format_possibilities / difflib suggestions",
+        "path": "src/click/exceptions.py",
+        "line": 26,
+        "what_could_attach": "Shared suggestion formatting that other 'did you mean' errors could reuse."
+      }
+    ],
+    "gaps": [
+      {
+        "description": "There is no exit-code override on the constructor, so a custom code needs a subclass.",
+        "why_plausible": "Exit already takes a code, so an optional exit_code argument is a small step.",
+        "nearest_existing": "ClickException"
+      },
+      {
+        "description": "There is no structured or machine-readable output, such as to_dict or JSON, for errors.",
+        "why_plausible": "Errors already carry param, option_name and possibilities as attributes.",
+        "nearest_existing": "ClickException.show"
+      },
+      {
+        "description": "There is no fuzzy-match tuning (n and cutoff are fixed to the difflib defaults) and no suggestions for BadParameter or Choice errors.",
+        "why_plausible": "NoSuchOption and NoSuchCommand duplicate the same possibilities logic, which could be factored out and parameterized.",
+        "nearest_existing": "NoSuchOption"
+      },
+      {
+        "description": "Abort carries no message and Exit carries no message, so there is no custom 'Aborted!' text.",
+        "why_plausible": "main prints a fixed 'Aborted!'.",
+        "nearest_existing": "Abort"
+      }
+    ],
+    "limitations": [
+      "ClickException.message and show_color are Final, so subclasses cannot reassign them. show_color is captured at construction.",
+      "Abort and Exit are not ClickExceptions, so `except ClickException` does not catch them.",
+      "Exit.__init__ does not call super().__init__, so args is empty. Exit is slotted, but it inherits __dict__ from RuntimeError.",
+      "MissingParameter.__str__ and format_message differ: str gives the raw message or 'Missing parameter: name', while show gives the full formatted text.",
+      "NoArgsIsHelpError.show uses err=True, so its output goes to stderr only when file is None.",
+      "The only test for this module that I read covers FileError.format_message; other classes have no dedicated tests in tests/test_exceptions."
+    ]
+  }
+}

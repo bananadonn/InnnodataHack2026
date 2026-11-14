@@ -1,0 +1,258 @@
+{
+  "path": "src/click/formatting.py",
+  "claim": {
+    "summary": "src/click/formatting.py holds click's in-memory help rendering. It has module helpers (measure_table, iter_rows, wrap_text, join_options), the HelpFormatter class, and a module global FORCED_WIDTH that CliRunner sets to 80 during invoke. wrap_text delegates to click._textwrap.TextWrapper and is ANSI-aware via term_len. HelpFormatter buffers strings and exposes write_usage, write_heading, write_text, write_dl and the section/indentation context managers. Context.make_formatter (core.py:638) builds it from terminal_width and max_content_width, and Context.formatter_class (core.py:315) is the subclass hook.",
+    "interfaces": [
+      {
+        "name": "wrap_text",
+        "behavior": "Expands tabs, then wraps with click._textwrap.TextWrapper (replace_whitespace=False). Defaults: width=78, no indents, preserve_paragraphs=False (single-paragraph wrap via wrapper.fill). With preserve_paragraphs=True, lines are grouped into paragraphs split on empty lines. The first line's leading indent (measured with term_len) is kept as an extra indent for the paragraph. A paragraph whose first line is just '\\b' is emitted unwrapped via indent_only, with the \\b line dropped. Other paragraphs have their lines joined with spaces and are filled. Paragraphs are joined with '\\n\\n'. Width is measured in visible characters, so ANSI escapes are ignored (versionchanged 8.4.0).",
+        "edge_cases": [
+          "empty text with preserve_paragraphs=True returns ''",
+          "tabs expanded to 8 columns",
+          "a '\\b' paragraph keeps its internal newlines and relative indentation",
+          "empty text without preserve_paragraphs returns '' and drops initial_indent (see the test comment at tests/test_formatting.py:520-522)"
+        ],
+        "raises": []
+      },
+      {
+        "name": "measure_table",
+        "behavior": "Takes an iterable of row tuples. Returns a tuple of the maximum term_len per column index, in column order.",
+        "edge_cases": [
+          "empty rows give ()",
+          "rows of unequal length are handled per index"
+        ],
+        "raises": []
+      },
+      {
+        "name": "iter_rows",
+        "behavior": "Yields each row right-padded with '' up to col_count columns.",
+        "edge_cases": [
+          "rows already at col_count are unchanged",
+          "rows longer than col_count are not truncated"
+        ],
+        "raises": []
+      },
+      {
+        "name": "HelpFormatter",
+        "behavior": "Buffering formatter. __init__(indent_increment=2, width=None, max_width=None). max_width defaults to 80. If width is None it uses module FORCED_WIDTH, else max(min(terminal columns, max_width) - 2, 50). Starts with current_indent=0 and an empty buffer list.",
+        "edge_cases": [
+          "an explicit width bypasses the 50 minimum and FORCED_WIDTH",
+          "the shutil import is lazy"
+        ],
+        "raises": []
+      },
+      {
+        "name": "HelpFormatter.write",
+        "behavior": "Appends a raw string to self.buffer with no processing.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "HelpFormatter.indent",
+        "behavior": "Adds indent_increment to current_indent.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "HelpFormatter.dedent",
+        "behavior": "Subtracts indent_increment from current_indent. There is no floor at 0.",
+        "edge_cases": [
+          "unbalanced dedent can make current_indent negative"
+        ],
+        "raises": []
+      },
+      {
+        "name": "HelpFormatter.write_usage",
+        "behavior": "Writes the usage line. The default prefix is gettext('Usage:') + ' '. The prefix is right-aligned in a field of current_indent characters, followed by 'prog '. If args is empty, only the prefix and prog are written with trailing spaces stripped, then '\\n'. If text_width (width - current_indent) >= term_len(usage_prefix) + 20, args are wrapped to the right of the prefix with a hanging indent. Otherwise the prefix line is written alone and args go on following lines indented by max(current_indent, term_len(prefix)) + 4.",
+        "edge_cases": [
+          "empty args gives 'Usage: Program\\n'",
+          "a styled prefix is measured with term_len",
+          "an explicit prefix='' is honoured because the check is `is None`"
+        ],
+        "raises": []
+      },
+      {
+        "name": "HelpFormatter.write_heading",
+        "behavior": "Writes current_indent spaces, the heading, ':' and a newline.",
+        "edge_cases": [
+          "the colon is always appended",
+          "the heading is not translated or wrapped"
+        ],
+        "raises": []
+      },
+      {
+        "name": "HelpFormatter.write_paragraph",
+        "behavior": "Writes '\\n' only if the buffer is non-empty, so a blank line is never emitted first.",
+        "edge_cases": [
+          "no-op on an empty buffer"
+        ],
+        "raises": []
+      },
+      {
+        "name": "HelpFormatter.write_text",
+        "behavior": "Wraps text at self.width with initial and subsequent indent equal to current_indent spaces, with preserve_paragraphs=True (so \\b blocks work), then writes a trailing newline.",
+        "edge_cases": [
+          "empty text writes '\\n' only, or the indent plus newline depending on wrapper behaviour"
+        ],
+        "raises": []
+      },
+      {
+        "name": "HelpFormatter.write_dl",
+        "behavior": "Writes a definition list. col_max=30 and col_spacing=2 are the defaults. rows is materialised with list(). The first column width is min(max term_len, col_max) + col_spacing. If the term fits it is padded, otherwise the description starts on the next line at first_col + current_indent. The description is wrapped at max(width - first_col - 2, 10) with preserve_paragraphs=True. Continuation lines are indented by first_col + current_indent. A row with an empty second item writes only the term and a newline.",
+        "edge_cases": [
+          "empty rows: widths is () so len != 2, which raises TypeError",
+          "a term wider than col_max pushes the description to the next line",
+          "an empty wrapped result writes '\\n'",
+          "a row with an empty description is still counted as 2 columns"
+        ],
+        "raises": [
+          "TypeError"
+        ]
+      },
+      {
+        "name": "HelpFormatter.section",
+        "behavior": "Context manager that calls write_paragraph, then write_heading(name), then indent(). It dedents in a finally block.",
+        "edge_cases": [
+          "dedent runs even if the body raises"
+        ],
+        "raises": []
+      },
+      {
+        "name": "HelpFormatter.indentation",
+        "behavior": "Context manager that indents and dedents in a finally block.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "HelpFormatter.getvalue",
+        "behavior": "Returns ''.join(self.buffer).",
+        "edge_cases": [
+          "an empty buffer gives ''"
+        ],
+        "raises": []
+      },
+      {
+        "name": "join_options",
+        "behavior": "Takes option strings and returns (', '.join(sorted opts), any_prefix_is_slash). Sorting is stable by the length of the prefix from parser._split_opt, so '-v' comes before '--verbose'. The flag is True if any prefix is '/'.",
+        "edge_cases": [
+          "an empty iterable gives ('', False)",
+          "options with equal prefix length keep their input order"
+        ],
+        "raises": []
+      },
+      {
+        "name": "FORCED_WIDTH",
+        "behavior": "Module global, default None. HelpFormatter uses it as the default width when no width is given. CliRunner.isolation sets it to 80 and restores it afterwards (testing.py:437-438, 592).",
+        "edge_cases": [
+          "it only applies when width=None"
+        ],
+        "raises": []
+      }
+    ],
+    "error_conventions": "The module raises only one exception directly: TypeError(\"Expected two columns for definition list\") in write_dl (line 246). The style is a short sentence with no trailing period. There is no ValueError validation of widths or indents. Translatable text goes through gettext (only \"Usage:\") (line 167).",
+    "examples": [
+      {
+        "description": "write_text wraps at the given width with the current indent",
+        "code": "formatter = click.HelpFormatter(width=len(\"  Lorem ipsum dolor sit amet,\"))\nformatter.current_indent = 2\nformatter.write_text(text)\nactual = formatter.getvalue()\n# \"  Lorem ipsum dolor sit amet,\\n  consectetur adipiscing elit\\n\"",
+        "source_path": "tests/test_formatting.py",
+        "line_start": 426,
+        "line_end": 433
+      },
+      {
+        "description": "Docstring help with a \\b block and a fixed terminal width",
+        "code": "result = runner.invoke(cli, [\"--help\"], terminal_width=60)\nassert not result.exception\nassert result.output.splitlines() == [\n    \"Usage: cli [OPTIONS]\",\n    \"\",\n    \"  First paragraph.\",\n    ...",
+        "source_path": "tests/test_formatting.py",
+        "line_start": 30,
+        "line_end": 36
+      },
+      {
+        "description": "Customizing the formatter class on a Context",
+        "code": "return self.formatter_class(\n    width=self.terminal_width, max_width=self.max_content_width\n)",
+        "source_path": "src/click/core.py",
+        "line_start": 648,
+        "line_end": 650
+      },
+      {
+        "description": "write_usage with a styled prefix and a narrow width",
+        "code": "formatter = click.HelpFormatter(width=40)\nformatter.write_usage(\"cli\", \"[OPTIONS]\", prefix=styled_prefix)\nrendered = formatter.getvalue()",
+        "source_path": "tests/test_formatting.py",
+        "line_start": 509,
+        "line_end": 511
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_formatting.py",
+        "how_it_asserts": "Most tests use the `runner` fixture. They define a click command or group and call runner.invoke(cli, ['--help'], terminal_width=N). They then compare result.output.splitlines() to an exact list of lines. Direct unit tests build click.HelpFormatter(...), set current_indent, call write_usage or write_text, and compare getvalue() to an exact string. Parametrized tests cover write_usage with empty args, a custom prefix and a long prog. wrap_text is checked for styled input: the ANSI-styled output should give the same line layout as the stripped plain input, compared via strip_ansi. The file also covers usage errors, the \\b marker, truncating docstrings and show_default."
+      }
+    ],
+    "extension_points": [
+      {
+        "name": "Context.formatter_class",
+        "path": "src/click/core.py",
+        "line": 315,
+        "what_could_attach": "Set a HelpFormatter subclass to override write_dl, write_heading, write_usage and so on, for example to colorize or reflow output."
+      },
+      {
+        "name": "Context.make_formatter",
+        "path": "src/click/core.py",
+        "line": 638,
+        "what_could_attach": "Override to construct a formatter with custom arguments."
+      },
+      {
+        "name": "Command.format_help / format_options / format_help_text / format_epilog",
+        "path": "src/click/core.py",
+        "line": 1259,
+        "what_could_attach": "Override these to call formatter methods in a new layout, such as extra sections via formatter.section()."
+      },
+      {
+        "name": "HelpFormatter.write_dl",
+        "path": "src/click/formatting.py",
+        "line": 229,
+        "what_could_attach": "Subclass to change the column algorithm or the col_max and col_spacing defaults."
+      },
+      {
+        "name": "FORCED_WIDTH",
+        "path": "src/click/formatting.py",
+        "line": 11,
+        "what_could_attach": "The global width override, used by the test runner."
+      },
+      {
+        "name": "HelpFormatter.section",
+        "path": "src/click/formatting.py",
+        "line": 274,
+        "what_could_attach": "Context manager that custom format_* methods can use for new help sections."
+      }
+    ],
+    "gaps": [
+      {
+        "description": "write_dl does not validate input rows or support more than two columns, and it raises TypeError on empty rows.",
+        "why_plausible": "Commands with no options would still render an empty section safely, and a graceful empty case is a small change.",
+        "nearest_existing": "HelpFormatter.write_dl"
+      },
+      {
+        "description": "dedent has no floor at zero and there is no guard against unbalanced indent and dedent calls.",
+        "why_plausible": "A small clamp or assertion would prevent negative indentation producing odd output.",
+        "nearest_existing": "HelpFormatter.dedent"
+      },
+      {
+        "description": "There is no direct control over the wrapping of the description column, such as hanging indents or a configurable min text width. The minimum of 10 and the 2-column right margin are hard-coded.",
+        "why_plausible": "The numbers could become parameters or class attributes, like col_max and col_spacing already are.",
+        "nearest_existing": "HelpFormatter.write_dl"
+      },
+      {
+        "description": "There is no option to write to a stream, and no richer output such as a heading style. The formatter always buffers in memory and headings are plain text.",
+        "why_plausible": "Styled headings could be added via a hook in write_heading.",
+        "nearest_existing": "HelpFormatter.write_heading"
+      }
+    ],
+    "limitations": [
+      "Output is always buffered in memory (class docstring).",
+      "write_dl accepts exactly two columns.",
+      "write_heading appends ':' unconditionally and does not wrap.",
+      "The terminal-width default is clamped to min 50 and max (max_width - 2), with max_width defaulting to 80.",
+      "FORCED_WIDTH is a module-global, so it is not thread-safe.",
+      "The class docstring says width 'clamped to a maximum of 78', while the code uses max_width=80 minus 2, which gives the same result."
+    ]
+  }
+}

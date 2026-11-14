@@ -1,0 +1,420 @@
+{
+  "purpose": "Click is a Python library for building command-line interfaces. You compose commands, groups, options and arguments with decorators. It generates help, parses and converts arguments, prompts the user, shows progress bars, and provides shell completion and a test runner.",
+  "intended_users": "Python developers who write CLI tools. Libraries such as Flask build on it. Pallets maintainers and contributors are the other group.",
+  "languages": [
+    "Python (>=3.10)"
+  ],
+  "frameworks": [
+    "flit_core (build backend)",
+    "pytest",
+    "tox with tox-uv",
+    "mypy and pyright",
+    "ruff",
+    "pre-commit",
+    "Sphinx with myst-parser (docs)"
+  ],
+  "dependencies": [
+    "Runtime: none declared in pyproject.toml. No [project].dependencies key was seen, so it relies on the standard library; Windows console support is in _winconsole.py",
+    "Dependency groups: dev (ruff, tox, tox-uv); tests (pytest); tests-random (pytest, pytest-randomly, pytest-xdist); typing (mypy, pyright, pytest); docs (sphinx and plugins); pre-commit; gha-update"
+  ],
+  "entry_points": [
+    {
+      "path": "src/click/__init__.py",
+      "line": 10,
+      "description": "Public API re-exports (Command, Group, Option, Argument, Context, decorators, exceptions, termui, types, utils). A module-level __getattr__ at line 76 serves the deprecated names."
+    },
+    {
+      "path": "src/click/core.py",
+      "line": 1483,
+      "description": "Command.main(): the CLI entry point. It handles shell completion, makes the Context, invokes the command, and maps exceptions to exit codes."
+    },
+    {
+      "path": "src/click/testing.py",
+      "line": 317,
+      "description": "CliRunner, the test harness that invokes commands in isolation."
+    },
+    {
+      "path": "src/click/decorators.py",
+      "line": 1,
+      "description": "The @command, @group, @option and @argument decorators that most users call first. Line 1 is the top of the module; I did not read the file."
+    }
+  ],
+  "key_modules": [
+    {
+      "path": "src/click/core.py",
+      "role": "Context, Command, Group, CommandCollection, Parameter, Option, Argument and ParameterSource. It holds the parse, convert, default and invoke logic. It is about 3800 lines long.",
+      "feature_relevance": "Most features on commands, options or arguments, such as a new Option or Parameter keyword, help rendering or context behaviour, are added here."
+    },
+    {
+      "path": "src/click/decorators.py",
+      "role": "Decorators for commands, groups, options, arguments and the built-in version, help, password and confirmation options.",
+      "feature_relevance": "A new parameter or option keyword usually needs a matching decorator signature here."
+    },
+    {
+      "path": "src/click/types.py",
+      "role": "ParamType and its subclasses (Choice, IntRange, FloatRange, File, Path, DateTime, Tuple, and others), plus the BOOL, INT and STRING singletons.",
+      "feature_relevance": "New parameter types or type conversion rules go here."
+    },
+    {
+      "path": "src/click/parser.py",
+      "role": "The internal option and argument parser. The old OptionParser name is deprecated.",
+      "feature_relevance": "Changes to how tokens are parsed, such as option prefixes or nargs, are made here."
+    },
+    {
+      "path": "src/click/shell_completion.py",
+      "role": "Shell completion, with bash, zsh, fish and (per CHANGES.md 8.5.0) PowerShell.",
+      "feature_relevance": "A new shell or completion behaviour goes here."
+    },
+    {
+      "path": "src/click/termui.py",
+      "role": "Interactive helpers: prompt, confirm, style, secho, progressbar, edit, launch, pause, getchar and echo_via_pager.",
+      "feature_relevance": "New terminal UI helpers go here. The implementations live in _termui_impl.py."
+    },
+    {
+      "path": "src/click/exceptions.py",
+      "role": "ClickException and its subclasses: UsageError, BadParameter, MissingParameter, Abort, Exit and others.",
+      "feature_relevance": "New error types and error formatting."
+    },
+    {
+      "path": "src/click/formatting.py",
+      "role": "HelpFormatter and text wrapping.",
+      "feature_relevance": "Help output layout changes."
+    },
+    {
+      "path": "src/click/utils.py",
+      "role": "echo, open_file, LazyFile, KeepOpenFile, get_app_dir, format_filename and the program-name and argument-expansion helpers.",
+      "feature_relevance": "General utilities. The module also hosts deprecated names through __getattr__ at about line 669."
+    },
+    {
+      "path": "src/click/testing.py",
+      "role": "CliRunner, Result, and stream capture classes such as StreamMixer and _FDCapture.",
+      "feature_relevance": "Test-runner features such as input, output and isolation."
+    },
+    {
+      "path": "src/click/_compat.py",
+      "role": "Internal compatibility layer for streams and platforms. I did not read it.",
+      "feature_relevance": "Stream and platform handling that features may touch."
+    },
+    {
+      "path": "src/click/globals.py",
+      "role": "Context stack and get_current_context. I did not read it.",
+      "feature_relevance": "Access to the current context."
+    }
+  ],
+  "execution_flow": "The user calls the command object, or Command.main(), which is core.py:1483. main() takes args from sys.argv[1:], expanding them on Windows, and detects the program name. self._main_shell_completion handles any completion request and exits early. Then make_context builds a Context and calls Command.parse_args, which uses the parser and each Parameter's handle_parse_result. That step resolves the value from the command line, an environment variable, a default map or the default, then runs process_value to convert and validate it. Command.invoke runs the callback. A Group.invoke resolves the subcommand through resolve_command, makes a sub-context and invokes it. In standalone mode, main() catches Exit, Abort, KeyboardInterrupt, EOFError, ClickException and EPIPE OSError. It prints the message and calls sys.exit. With standalone_mode=False it returns the value or propagates the exception.",
+  "test_runner": "pytest. Config is in pyproject.toml: testpaths=tests, filterwarnings=error, and stress tests excluded by default via addopts.",
+  "test_layout": [
+    {
+      "path": "tests/test_basic.py",
+      "covers": [
+        "src/click/core.py",
+        "src/click/decorators.py"
+      ]
+    },
+    {
+      "path": "tests/test_options.py",
+      "covers": [
+        "src/click/core.py"
+      ]
+    },
+    {
+      "path": "tests/test_arguments.py",
+      "covers": [
+        "src/click/core.py"
+      ]
+    },
+    {
+      "path": "tests/test_commands.py",
+      "covers": [
+        "src/click/core.py"
+      ]
+    },
+    {
+      "path": "tests/test_context.py",
+      "covers": [
+        "src/click/core.py"
+      ]
+    },
+    {
+      "path": "tests/test_chain.py",
+      "covers": [
+        "src/click/core.py"
+      ]
+    },
+    {
+      "path": "tests/test_defaults.py",
+      "covers": [
+        "src/click/core.py"
+      ]
+    },
+    {
+      "path": "tests/test_command_decorators.py",
+      "covers": [
+        "src/click/decorators.py"
+      ]
+    },
+    {
+      "path": "tests/test_parser.py",
+      "covers": [
+        "src/click/parser.py"
+      ]
+    },
+    {
+      "path": "tests/test_shell_completion.py",
+      "covers": [
+        "src/click/shell_completion.py"
+      ]
+    },
+    {
+      "path": "tests/test_termui.py",
+      "covers": [
+        "src/click/termui.py",
+        "src/click/_termui_impl.py"
+      ]
+    },
+    {
+      "path": "tests/test_testing.py",
+      "covers": [
+        "src/click/testing.py"
+      ]
+    },
+    {
+      "path": "tests/test_formatting.py",
+      "covers": [
+        "src/click/formatting.py"
+      ]
+    },
+    {
+      "path": "tests/test_compat.py",
+      "covers": [
+        "src/click/_compat.py"
+      ]
+    },
+    {
+      "path": "tests/test_deprecations.py",
+      "covers": [
+        "src/click/__init__.py",
+        "src/click/core.py"
+      ]
+    },
+    {
+      "path": "tests/test_imports.py",
+      "covers": [
+        "src/click/__init__.py"
+      ]
+    },
+    {
+      "path": "tests/test_info_dict.py",
+      "covers": [
+        "src/click/core.py",
+        "src/click/types.py"
+      ]
+    },
+    {
+      "path": "tests/test_exceptions/test_FileError.py",
+      "covers": [
+        "src/click/exceptions.py"
+      ]
+    },
+    {
+      "path": "tests/test_types/test_Choice.py",
+      "covers": [
+        "src/click/types.py"
+      ]
+    },
+    {
+      "path": "tests/test_types/test_convert_type.py",
+      "covers": [
+        "src/click/types.py"
+      ]
+    },
+    {
+      "path": "tests/test_utils/test_echo.py",
+      "covers": [
+        "src/click/utils.py"
+      ]
+    },
+    {
+      "path": "tests/test_utils/test_prompt.py",
+      "covers": [
+        "src/click/termui.py"
+      ]
+    },
+    {
+      "path": "tests/test_utils/test_LazyFile.py",
+      "covers": [
+        "src/click/utils.py"
+      ]
+    },
+    {
+      "path": "tests/typing/typing_aliased_group.py",
+      "covers": [
+        "src/click/decorators.py",
+        "src/click/core.py"
+      ]
+    }
+  ],
+  "test_conventions": [
+    "Files are named test_<topic>.py. Larger areas become packages: tests/test_types, tests/test_utils and tests/test_exceptions, with one file per class or function, e.g. test_Choice.py.",
+    "The shared fixture `runner` in tests/conftest.py returns CliRunner() with function scope.",
+    "Warnings are turned into errors (filterwarnings=error), so tests that expect a warning must catch it explicitly.",
+    "Stress tests carry @pytest.mark.stress and are run only via `tox -e stress`.",
+    "Static typing checks run on tests/typing/typing_*.py with mypy and pyright, not pytest.",
+    "I did not read individual tests, so assertion style is not documented here."
+  ],
+  "compatibility_rules": [
+    {
+      "claim": "The public API is whatever src/click/__init__.py re-exports with `as` aliases. Internals use underscore prefixes (_compat, _termui_impl, _utils, _winconsole).",
+      "path": "src/click/__init__.py",
+      "line_start": 10,
+      "line_end": 73
+    },
+    {
+      "claim": "Deprecations keep the old name alive through a module-level __getattr__. It emits DeprecationWarning with stacklevel=2 and a message naming the removal version (Click 9.0, or 9.1 for __version__).",
+      "path": "src/click/__init__.py",
+      "line_start": 76,
+      "line_end": 144
+    },
+    {
+      "claim": "The Python floor is 3.10, and the type checkers target 3.10.",
+      "path": "pyproject.toml",
+      "line_start": 16,
+      "line_end": 16
+    },
+    {
+      "claim": "Warnings fail the tests, and stress tests are excluded by default.",
+      "path": "pyproject.toml",
+      "line_start": 83,
+      "line_end": 91
+    },
+    {
+      "claim": "Typing is strict. The package ships py.typed (src/click/py.typed). mypy runs in strict mode on src and tests/typing, and pyright runs --verifytypes.",
+      "path": "pyproject.toml",
+      "line_start": 107,
+      "line_end": 116
+    },
+    {
+      "claim": "The ruff config requires `typing` imported as `t` and single-line imports.",
+      "path": "pyproject.toml",
+      "line_start": 126,
+      "line_end": 143
+    },
+    {
+      "claim": "Docstrings carry versionchanged and versionadded notes. CHANGES.md uses a per-version bullet list with {pr} and {issue} references.",
+      "path": "src/click/core.py",
+      "line_start": 1523,
+      "line_end": 1532
+    },
+    {
+      "claim": "Contributor rules: avoid ternary expressions because coverage cannot measure both branches. Avoid unnecessary dependencies, preferring the standard library. Wrap Markdown at 80 columns.",
+      "path": "docs/contributing.md",
+      "line_start": 33,
+      "line_end": 46
+    },
+    {
+      "claim": "The command-level `deprecated` parameter accepts a bool or a str.",
+      "path": "src/click/core.py",
+      "line_start": 983,
+      "line_end": 991
+    }
+  ],
+  "setup_and_test_commands": [
+    {
+      "command": "uv sync",
+      "purpose": "Install the default groups (dev, pre-commit, tests, typing). This is inferred from tool.uv default-groups, and no command is written in the file.",
+      "source": "pyproject.toml",
+      "verified": false
+    },
+    {
+      "command": "pytest",
+      "purpose": "Run the test suite",
+      "source": "pyproject.toml",
+      "verified": false
+    },
+    {
+      "command": "tox",
+      "purpose": "Run the environments listed in env_list: Python 3.10\u20133.14, 3.14t, pypy3.11, stress, style, typing and docs",
+      "source": "pyproject.toml",
+      "verified": false
+    },
+    {
+      "command": "tox r -e stress",
+      "purpose": "Run the stress tests",
+      "source": "docs/contributing.md",
+      "verified": false
+    },
+    {
+      "command": "tox r -e random",
+      "purpose": "Run the tests in parallel in random order",
+      "source": "docs/contributing.md",
+      "verified": false
+    },
+    {
+      "command": "tox r -e typing",
+      "purpose": "Run mypy and pyright --verifytypes",
+      "source": "pyproject.toml",
+      "verified": false
+    },
+    {
+      "command": "tox r -e style",
+      "purpose": "Run all pre-commit hooks on all files",
+      "source": "pyproject.toml",
+      "verified": false
+    },
+    {
+      "command": "tox r -e docs",
+      "purpose": "Build the docs with sphinx-build -W",
+      "source": "pyproject.toml",
+      "verified": false
+    }
+  ],
+  "evidence": [
+    {
+      "claim": "The project version is 8.5.1, Python >=3.10, and it builds with flit_core.",
+      "path": "pyproject.toml",
+      "line_start": 1,
+      "line_end": 16
+    },
+    {
+      "claim": "CHANGES.md has a 8.5.1 section dated 2026-11-09.",
+      "path": "CHANGES.md",
+      "line_start": 1,
+      "line_end": 33
+    },
+    {
+      "claim": "main() runs shell completion, then make_context, invoke and exception mapping.",
+      "path": "src/click/core.py",
+      "line_start": 1534,
+      "line_end": 1612
+    },
+    {
+      "claim": "core.py defines Context, Command, Group, CommandCollection, Parameter, Option and Argument.",
+      "path": "src/click/core.py",
+      "line_start": 213,
+      "line_end": 3698
+    },
+    {
+      "claim": "The test fixture `runner` is CliRunner().",
+      "path": "tests/conftest.py",
+      "line_start": 6,
+      "line_end": 8
+    },
+    {
+      "claim": "CliRunner and Result are defined in testing.py.",
+      "path": "src/click/testing.py",
+      "line_start": 231,
+      "line_end": 317
+    }
+  ],
+  "open_questions": [
+    "The checkout is commit cf19179. I did not confirm that the 8.5.1 tag points to it. The pyproject version and the CHANGES.md section both say 8.5.1.",
+    "I did not read the bodies of decorators.py, types.py, parser.py, shell_completion.py, _termui_impl.py or the individual tests. The coverage mapping comes from file names and one-line module roles.",
+    "I did not check whether a runtime dependency exists on Windows (for example colorama). The pyproject [project] table shows no dependencies key.",
+    "Docs and examples were not mapped in detail."
+  ],
+  "limitations": [
+    "Read-only pass. No code or tests were run, so every command has verified=false.",
+    "Many macOS `._*` AppleDouble files are present in the clone. I ignored them as noise.",
+    "Some key module paths are cited at line 1 or at declaration lines only, and only the sections named above were read."
+  ]
+}

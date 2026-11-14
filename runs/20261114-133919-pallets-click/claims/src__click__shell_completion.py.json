@@ -1,0 +1,394 @@
+{
+  "path": "src/click/shell_completion.py",
+  "claim": {
+    "summary": "src/click/shell_completion.py implements Click's shell completion. shell_complete() parses an instruction such as \"bash_source\" or \"zsh_complete\" from an env var. It looks up a ShellComplete subclass in the `_available_shells` registry. It then either prints the shell script (`source`) or the formatted completions (`complete`). Completion resolves a Context chain from the already-typed args (`_resolve_context`), picks the object that completes the incomplete word (`_resolve_incomplete`), and calls that object's `shell_complete(ctx, incomplete)`. That call returns a list of CompletionItem. Each shell subclass supplies a script template (`source_template`), env-var parsing (`get_completion_args`) and an output wire format (`format_completion`). Wire formats: bash and fish use \"type,value\" lines (fish adds a tab and help), while zsh and powershell use 3-line \"type\\nvalue\\nhelp\" records with \"_\" as the no-help sentinel. Custom shells can be registered with add_completion_class.",
+    "interfaces": [
+      {
+        "name": "shell_complete",
+        "behavior": "Entry point (line 19). Splits `instruction` with partition('_') into shell and instruction. Looks up the class with get_completion_class, instantiates it as comp_cls(cli, ctx_args, prog_name, complete_var), and returns 0 or 1. 'source' echoes comp.source() as encoded bytes with nl=False. 'complete' echoes comp.complete() as encoded bytes, with a trailing newline. Bytes are written so Windows does not turn LF into CRLF.",
+        "edge_cases": [
+          "Unknown shell returns 1",
+          "Unknown instruction returns 1",
+          "Instruction without '_' gives shell=whole string and instruction='' so it returns 1 (or 1 for unknown shell)",
+          "The shell name is the part before the first underscore, so registered names containing '_' can never match"
+        ],
+        "raises": []
+      },
+      {
+        "name": "CompletionItem",
+        "behavior": "Generic class with __slots__ value, type, help, _info (line 67). Defaults: type='plain', help=None. Extra **kwargs are kept in _info and read as attributes through __getattr__.",
+        "edge_cases": [
+          "Unknown attribute returns None instead of raising AttributeError",
+          "type values the built-in shell scripts handle: plain, dir, file; any other type is ignored by the bash, fish and powershell scripts"
+        ],
+        "raises": []
+      },
+      {
+        "name": "CompletionItem.__getattr__",
+        "behavior": "Returns self._info.get(name), so missing metadata is None (line 100).",
+        "edge_cases": [
+          "Only called for attributes not found normally"
+        ],
+        "raises": []
+      },
+      {
+        "name": "ShellComplete",
+        "behavior": "Base class (line 277, versionadded 8.0). Holds cli, ctx_args, prog_name, complete_var. Subclasses must set the class vars `name` and `source_template`.",
+        "edge_cases": [
+          "get_completion_args and format_completion are abstract and raise NotImplementedError in the base class",
+          "The base class can be used directly to call get_completions (tests do this)"
+        ],
+        "raises": [
+          "NotImplementedError"
+        ]
+      },
+      {
+        "name": "ShellComplete.__init__",
+        "behavior": "Stores cli, ctx_args (a mutable mapping), prog_name and complete_var (line 306).",
+        "edge_cases": [
+          "ctx_args is later mutated by _resolve_context, which sets resilient_parsing=True"
+        ],
+        "raises": []
+      },
+      {
+        "name": "ShellComplete.func_name",
+        "behavior": "Property (line 318). Replaces '-' with '_' in prog_name, strips non-word ASCII characters with re.sub(r'\\W*', '', flags=re.ASCII), and returns f'_{safe}_completion'.",
+        "edge_cases": [
+          "A prog_name with only symbols gives '__completion'"
+        ],
+        "raises": []
+      },
+      {
+        "name": "ShellComplete.source_vars",
+        "behavior": "Returns the dict used to format source_template (line 326), with keys complete_func (func_name), complete_var and prog_name.",
+        "edge_cases": [
+          "Subclasses can add keys, though the _SourceVarsDict TypedDict only declares three"
+        ],
+        "raises": []
+      },
+      {
+        "name": "ShellComplete.source",
+        "behavior": "Returns source_template % source_vars() (line 338).",
+        "edge_cases": [
+          "A literal '%' in a custom template must be written as '%%', otherwise the formatting fails",
+          "The result is encoded and written without a trailing newline by shell_complete"
+        ],
+        "raises": [
+          "KeyError",
+          "TypeError",
+          "ValueError"
+        ]
+      },
+      {
+        "name": "ShellComplete.get_completion_args",
+        "behavior": "Abstract (line 346). Must return (args, incomplete) read from env vars.",
+        "edge_cases": [],
+        "raises": [
+          "NotImplementedError"
+        ]
+      },
+      {
+        "name": "ShellComplete.get_completions",
+        "behavior": "Line 353. Calls _resolve_context, then _resolve_incomplete, then obj.shell_complete(ctx, incomplete). Returns a list of CompletionItem.",
+        "edge_cases": [
+          "Empty incomplete is allowed",
+          "args may be mutated by _resolve_incomplete (an '--opt=value' split appends the option name)"
+        ],
+        "raises": []
+      },
+      {
+        "name": "ShellComplete.format_completion",
+        "behavior": "Abstract (line 367). Turns one CompletionItem into the shell wire string.",
+        "edge_cases": [],
+        "raises": [
+          "NotImplementedError"
+        ]
+      },
+      {
+        "name": "ShellComplete.complete",
+        "behavior": "Line 375. Calls get_completion_args, then get_completions, then format_completion on each item. Joins the results with '\\n'.",
+        "edge_cases": [
+          "No completions gives an empty string; shell_complete's echo then still adds a newline",
+          "The result has no trailing newline of its own, since echo adds one"
+        ],
+        "raises": []
+      },
+      {
+        "name": "BashComplete",
+        "behavior": "name='bash', template _SOURCE_BASH (line 388). The script runs `env COMP_WORDS=... COMP_CWORD=... VAR=bash_complete $1`, then handles types: dir sets compopt -o dirnames, file sets compopt -o default, plain appends to COMPREPLY. The script registers with `complete -o nosort`, which needs Bash >= 4.4.",
+        "edge_cases": [
+          "The bash script ignores item.help"
+        ],
+        "raises": []
+      },
+      {
+        "name": "BashComplete._check_version",
+        "behavior": "Static method (line 394). Finds bash with shutil.which and runs `bash --norc -c 'echo ${BASH_VERSION}'`. Prints a translated warning to stderr if the version is below 4.4, or if bash is not found or the version can't be parsed.",
+        "edge_cases": [
+          "Never aborts; it only warns on stderr",
+          "The version comparison is done on strings, so '10' < '4' is True (a bug for major versions >= 10)",
+          "Tests monkeypatch it"
+        ],
+        "raises": []
+      },
+      {
+        "name": "BashComplete.source",
+        "behavior": "Calls _check_version(), then super().source() (line 427).",
+        "edge_cases": [
+          "Runs a subprocess on every source call"
+        ],
+        "raises": []
+      },
+      {
+        "name": "BashComplete.get_completion_args",
+        "behavior": "Line 431. Splits env COMP_WORDS with split_arg_string. cword=int(env COMP_CWORD). args=cwords[1:cword]. incomplete=cwords[cword], or '' on IndexError.",
+        "edge_cases": [
+          "A missing env var raises KeyError",
+          "A non-integer COMP_CWORD raises ValueError"
+        ],
+        "raises": [
+          "KeyError",
+          "ValueError"
+        ]
+      },
+      {
+        "name": "BashComplete.format_completion",
+        "behavior": "Returns f'{type},{value}' (line 443). The help text is dropped.",
+        "edge_cases": [
+          "A value containing a comma or newline is not escaped; the script does `IFS=',' read type value`, which keeps the rest of the line in value"
+        ],
+        "raises": []
+      },
+      {
+        "name": "ZshComplete",
+        "behavior": "name='zsh', template _SOURCE_ZSH (line 447). The script uses _describe for items with help and compadd for items without. It is frozen for backwards compatibility, so changes go into format_completion.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "ZshComplete.format_completion",
+        "behavior": "Line 465. help_ = item.help or '_'. Escapes ':' as '\\:' in the value only when help is present (not '_'). Returns 'type\\nvalue\\nhelp'.",
+        "edge_cases": [
+          "A real help text of '_' is treated as no help",
+          "A multi-line help is not sanitized"
+        ],
+        "raises": []
+      },
+      {
+        "name": "ZshComplete.get_completion_args",
+        "behavior": "Same as BashComplete: COMP_WORDS and COMP_CWORD, args=cwords[1:cword] (line 453).",
+        "edge_cases": [
+          "Missing env var raises KeyError",
+          "Non-integer COMP_CWORD raises ValueError"
+        ],
+        "raises": [
+          "KeyError",
+          "ValueError"
+        ]
+      },
+      {
+        "name": "FishComplete",
+        "behavior": "name='fish', template _SOURCE_FISH (line 479). get_completion_args (line 485) reads COMP_WORDS (the whole command line) and COMP_CWORD (the current token, not an index). The incomplete word is split_arg_string(COMP_CWORD)[0] when non-empty. args=cwords[1:], and the last element is popped if it equals incomplete.",
+        "edge_cases": [
+          "COMP_CWORD='' gives an empty incomplete",
+          "A quoted partial word is unquoted",
+          "A missing env var raises KeyError"
+        ],
+        "raises": [
+          "KeyError"
+        ]
+      },
+      {
+        "name": "FishComplete.format_completion",
+        "behavior": "Line 499. With help: 'type,value\\thelp', where newlines in the help become literal backslash-n and tabs become spaces. Without help: 'type,value'.",
+        "edge_cases": [
+          "An empty help string is treated as no help"
+        ],
+        "raises": []
+      },
+      {
+        "name": "PowerShellComplete",
+        "behavior": "name='powershell', template _SOURCE_POWERSHELL (line 516, versionadded 8.5.0). The template uses Register-ArgumentCompleter -Native and parses the output 3 lines at a time. Types: plain gives a CompletionResult with a tooltip; dir and file use Get-ChildItem with a prefix glob.",
+        "edge_cases": [
+          "The prefix for dir/file is wordToComplete+'*'"
+        ],
+        "raises": []
+      },
+      {
+        "name": "PowerShellComplete.format_completion",
+        "behavior": "Line 537. Same 3-line format as zsh. Help has \\r and \\n replaced by spaces ('_' if no help). The value is not escaped.",
+        "edge_cases": [
+          "CRLF becomes two spaces",
+          "A value containing a newline would break the framing"
+        ],
+        "raises": []
+      },
+      {
+        "name": "PowerShellComplete.get_completion_args",
+        "behavior": "Same logic as Bash and Zsh (line 525).",
+        "edge_cases": [
+          "Missing env var raises KeyError"
+        ],
+        "raises": [
+          "KeyError",
+          "ValueError"
+        ]
+      },
+      {
+        "name": "add_completion_class",
+        "behavior": "Registers cls in the module-level `_available_shells` under name or cls.name and returns cls, so it works as a decorator (line 560).",
+        "edge_cases": [
+          "Overwrites an existing entry silently",
+          "No validation of the name",
+          "If name is None and the class has no `name` attribute, AttributeError is raised"
+        ],
+        "raises": [
+          "AttributeError"
+        ]
+      },
+      {
+        "name": "get_completion_class",
+        "behavior": "Dict lookup in _available_shells (line 588). It has typing overloads for 'bash', 'fish' and 'zsh' only (no powershell overload).",
+        "edge_cases": [
+          "Unknown name returns None"
+        ],
+        "raises": []
+      },
+      {
+        "name": "split_arg_string",
+        "behavior": "Line 598. A shlex.shlex posix=True, whitespace_split=True, commenters='' split. On ValueError (unclosed quote or trailing escape) it appends lex.token as the partial token. Moved here from parser in 8.2.",
+        "edge_cases": [
+          "Unclosed quote keeps the partial token without the quote",
+          "Trailing backslash is dropped",
+          "Empty string gives []"
+        ],
+        "raises": []
+      }
+    ],
+    "error_conventions": "The module has no custom exception types. shell_complete signals failure through a return code of 1, with no message. The bash version check prints translated messages to stderr with echo(err=True) and does not raise; the messages are sentences with no 'Error:' prefix. The abstract methods raise bare NotImplementedError. Bad environment variables (missing COMP_WORDS or COMP_CWORD, or a non-integer COMP_CWORD) surface as raw KeyError or ValueError from os.environ and int(). The completion code assumes make_context runs with resilient_parsing=True, so Click usage errors are suppressed during resolution.",
+    "examples": [
+      {
+        "description": "Base ShellComplete used to get completions directly in tests",
+        "code": "def _get_completions(cli, args, incomplete):\n    comp = ShellComplete(cli, {}, cli.name, \"_CLICK_COMPLETE\")\n    return comp.get_completions(args, incomplete)",
+        "source_path": "tests/test_shell_completion.py",
+        "line_start": 24,
+        "line_end": 26
+      },
+      {
+        "description": "Option name completion hides options already used",
+        "code": "cli = Command(\"cli\", params=[Option([\"-t\", \"--test\"])])\nassert _get_words(cli, [], \"-\") == [\"-t\", \"--test\", \"--help\"]\nassert _get_words(cli, [\"-t\", \"a\"], \"-\") == [\"--help\"]",
+        "source_path": "tests/test_shell_completion.py",
+        "line_start": 34,
+        "line_end": 40
+      },
+      {
+        "description": "Registering a custom shell by decorator",
+        "code": "@add_completion_class\nclass MyshComplete(ShellComplete):\n    name = \"mysh\"\n    source_template = \"dummy source\"",
+        "source_path": "tests/test_shell_completion.py",
+        "line_start": 566,
+        "line_end": 569
+      },
+      {
+        "description": "Full complete via env var instruction",
+        "code": "cli = Group(\"cli\", commands=[Command(\"a\"), Command(\"b\", help=\"bee\")])\nenv[\"_CLI_COMPLETE\"] = f\"{shell}_complete\"\nresult = runner.invoke(cli, env=env)",
+        "source_path": "tests/test_shell_completion.py",
+        "line_start": 388,
+        "line_end": 390
+      },
+      {
+        "description": "CompletionItem arbitrary metadata",
+        "code": "c = CompletionItem(\"test\", a=1)\nassert c.a == 1\nassert c.b is None",
+        "source_path": "tests/test_shell_completion.py",
+        "line_start": 337,
+        "line_end": 339
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_shell_completion.py",
+        "how_it_asserts": "Plain pytest asserts. Most tests call a local helper that builds ShellComplete(cli, {}, name, '_CLICK_COMPLETE') and compare the list of .value strings from get_completions. Cases covered: groups, chained groups, options, arguments, nargs, `--`, hidden params, Choice, Path and File types, and context_settings. The end-to-end tests use the `runner` fixture with env={'_CLI_COMPLETE': '<shell>_source|complete', COMP_WORDS, COMP_CWORD} and compare result.output exactly or by substring. BashComplete._check_version is monkeypatched out. Registry tests use a fixture that saves, clears and restores `_available_shells`. Other tests check the LF-only line endings of source output, zsh colon escaping, fish and PowerShell help escaping via format_completion, and no ResourceWarning from unclosed files. Some of these tests I saw only by name, not in full."
+      }
+    ],
+    "extension_points": [
+      {
+        "name": "_available_shells / add_completion_class",
+        "path": "src/click/shell_completion.py",
+        "line": 560,
+        "what_could_attach": "Register new ShellComplete subclasses (for example nushell, elvish or tcsh) with a name, a source_template, and get_completion_args and format_completion implementations."
+      },
+      {
+        "name": "ShellComplete.source_vars",
+        "path": "src/click/shell_completion.py",
+        "line": 326,
+        "what_could_attach": "Override to add template variables, or to tweak the generated script per class."
+      },
+      {
+        "name": "ShellComplete.format_completion",
+        "path": "src/click/shell_completion.py",
+        "line": 367,
+        "what_could_attach": "Override to change the wire format, for example escaping values or passing the CompletionItem's extra metadata to a custom shell script."
+      },
+      {
+        "name": "ShellComplete.get_completions",
+        "path": "src/click/shell_completion.py",
+        "line": 353,
+        "what_could_attach": "Override to filter, sort or post-process the CompletionItem list before formatting."
+      },
+      {
+        "name": "CompletionItem type/kwargs",
+        "path": "src/click/shell_completion.py",
+        "line": 88,
+        "what_could_attach": "New item types (beyond plain, dir, file) or extra kwargs, used by custom type completions and a matching custom shell script."
+      },
+      {
+        "name": "_resolve_incomplete",
+        "path": "src/click/shell_completion.py",
+        "line": 752,
+        "what_could_attach": "Dispatch point that picks the Command or Parameter whose shell_complete(ctx, incomplete) is called. Custom Parameter, Command or ParamType shell_complete methods plug in here."
+      },
+      {
+        "name": "source_template class var",
+        "path": "src/click/shell_completion.py",
+        "line": 296,
+        "what_could_attach": "Replace the script text on a subclass, for example to extend the bash script to use help text."
+      }
+    ],
+    "gaps": [
+      {
+        "description": "Bash script ignores help text and CompletionItem.help. There is no descriptive completion for bash.",
+        "why_plausible": "The bash wire format already carries only type and value, but the other shells carry help. Bash 5.x can show descriptions through a custom display approach.",
+        "nearest_existing": "BashComplete.format_completion"
+      },
+      {
+        "description": "Value escaping is inconsistent. Bash and PowerShell values containing commas or newlines are not escaped, and zsh help is not newline-sanitized.",
+        "why_plausible": "Fish and PowerShell already sanitize help text, so the same treatment applies to zsh help and to values.",
+        "nearest_existing": "ZshComplete.format_completion"
+      },
+      {
+        "description": "get_completion_class has no typing overload for 'powershell'. The Bash version check compares version strings lexicographically and breaks for majors >= 10.",
+        "why_plausible": "Small fixes that follow the existing patterns.",
+        "nearest_existing": "get_completion_class"
+      },
+      {
+        "description": "No auto-detection of the shell, and no built-in install command that writes the script to the shell's rc or completions directory.",
+        "why_plausible": "The `source` instruction already produces the script, so a helper could wrap it for the user.",
+        "nearest_existing": "shell_complete"
+      },
+      {
+        "description": "Env var parsing failures (KeyError or ValueError) are not handled gracefully in get_completion_args.",
+        "why_plausible": "Shell scripts could be invoked incorrectly, and a clean exit code would be friendlier.",
+        "nearest_existing": "ShellComplete.get_completion_args"
+      }
+    ],
+    "limitations": [
+      "The shell is parsed with instruction.partition('_'), so registered shell names cannot contain underscores.",
+      "The zsh script is frozen for backwards compatibility, so only format_completion can change zsh behavior.",
+      "Bash completion requires Bash >= 4.4 (the nosort option). The check only warns on stderr, and the string comparison of versions is buggy for majors >= 10.",
+      "The source output has no trailing newline (nl=False). The complete output is utf-8 encoded bytes.",
+      "Completion runs with resilient_parsing=True and does not invoke callbacks or prompts. _resolve_context mutates the passed ctx_args.",
+      "Options are recognized through ctx._opt_prefixes, a private attribute.",
+      "The PowerShell script treats the dir and file types with a Get-ChildItem glob on the prefix and ignores the item's value.",
+      "Only the plain, dir and file item types are understood by the built-in scripts."
+    ]
+  }
+}
