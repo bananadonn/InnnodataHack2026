@@ -21,9 +21,23 @@ PYTHON_IMAGE = "python:3.12-slim"
 INSTANCE_ID_PREFIX = "pallets__click"
 
 # --- Models --------------------------------------------------------------------------
-# Generation goes through OpenRouter with a cheap model.
-# TODO(team): set the OpenRouter model id we agree on.
-GENERATION_MODEL = "TODO-set-openrouter-model-id"
+# Everything that CREATES a task runs on Sonnet through the Claude Agent SDK, which reads
+# ANTHROPIC_API_KEY from the environment: exploring the repo, designing features, and writing
+# the spec, gold patch and hidden tests. Haiku is only the benchmark solver.
+EXPLORE_MODEL = "claude-sonnet-5-5"
+PROPOSE_MODEL = "claude-sonnet-5-5"
+GENERATION_MODEL = "claude-sonnet-5-5"
+
+# Caps for every agent session. Budgets are the SDK's client-side estimate and can overshoot slightly.
+AGENT_MAX_TURNS = 60
+AGENT_WALL_TIMEOUT_SEC = 900
+AGENT_CONCURRENCY = 4          # agent sessions running at once
+MAP_MAX_BUDGET_USD = 2.00      # repo map (one session)
+CARD_MAX_BUDGET_USD = 1.50     # deep dive, per module
+UPSTREAM_MAX_BUDGET_USD = 1.50 # upstream novelty check (web)
+PROPOSE_MAX_BUDGET_USD = 4.00  # feature design
+DEEP_DIVE_MAX_MODULES = 8
+CLONE_TIMEOUT_SEC = 300
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # Benchmark ONLY with this model/agent/k. The Anthropic key is reserved for benchmarking.
@@ -42,6 +56,7 @@ SELFCHECK_RESULTS_DIR = RESULTS_DIR / "selfcheck"
 BENCH_RESULTS_DIR = RESULTS_DIR / "bench"
 PIPELINE_RUN_JSON = RESULTS_DIR / "pipeline_run.json"
 CLICK_CLONE_DIR = ROOT / "click"  # optional local clone, gitignored
+RUNS_DIR = ROOT / "runs"  # one workspace per exploration run; runs/*/repo is gitignored
 
 
 def openrouter_api_key() -> str:

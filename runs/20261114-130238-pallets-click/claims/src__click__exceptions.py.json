@@ -1,0 +1,224 @@
+{
+  "path": "src/click/exceptions.py",
+  "claim": {
+    "summary": "src/click/exceptions.py defines Click's exception hierarchy. ClickException (exit_code 1) and UsageError (exit_code 2) can be shown to the user via show(). Subclasses cover bad or missing parameters, unknown options and commands, and bad option or argument usage. FileError is a ClickException. Abort and Exit are RuntimeErrors used only for control flow. NoArgsIsHelpError is also defined here and is not in the role description. Only FileError has a dedicated test file. I did not read core.py, docs, or the other tests that exercise these classes.",
+    "interfaces": [
+      {
+        "name": "ClickException",
+        "behavior": "Base class for exceptions Click catches and prints. __init__(message) calls Exception.__init__, caches show_color = resolve_color_default() because the context is gone by print time, and stores message. exit_code is a ClassVar equal to 1. format_message() returns message. __str__ returns message. show(file=None) writes 'Error: {message}' to get_text_stderr() (when file is None) via echo, using the cached show_color.",
+        "edge_cases": [
+          "file=None defaults to stderr",
+          "show_color may be None"
+        ],
+        "raises": []
+      },
+      {
+        "name": "ClickException.format_message",
+        "behavior": "Returns self.message. Subclasses override it to build the user-facing text, and show() always goes through it.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "ClickException.show",
+        "behavior": "Echoes the translated 'Error: {message}' line to the given file, or to stderr by default. Colour comes from the show_color cached at construction.",
+        "edge_cases": [
+          "file=None means stderr"
+        ],
+        "raises": []
+      },
+      {
+        "name": "UsageError",
+        "behavior": "exit_code 2. __init__(message, ctx=None) stores ctx and cmd (ctx.command, or None when there is no ctx). show() prints the usage text from ctx.get_usage(), then, if the command has a help option, a hint such as \"Try 'cmd --help' for help.\". The hint uses the longest help option name. After that it prints 'Error: ...'. The colour is ctx.color. Without a ctx it prints only the Error line, with color=None.",
+        "edge_cases": [
+          "ctx=None prints only the Error line",
+          "no help option means no hint",
+          "hint picks max(help_names, key=len)"
+        ],
+        "raises": []
+      },
+      {
+        "name": "UsageError.show",
+        "behavior": "Prints usage and the help hint when ctx is set, then the 'Error:' line, all to file (stderr by default).",
+        "edge_cases": [
+          "ctx may be None"
+        ],
+        "raises": []
+      },
+      {
+        "name": "BadParameter",
+        "behavior": "Subclass of UsageError. __init__(message, ctx=None, param=None, param_hint=None). format_message() chooses a hint in this order: param_hint, then param.get_error_hint(ctx), otherwise none. With a hint it returns 'Invalid value for {hint}: {message}'. With no hint it returns 'Invalid value: {message}'. A list or tuple hint is joined as \"'a' / 'b'\" through _join_param_hints, which applies repr to each item. Click fills in ctx and param itself when the exception is raised from a callback or type.",
+        "edge_cases": [
+          "a str param_hint is used as-is",
+          "a sequence param_hint is repr-joined with ' / '"
+        ],
+        "raises": []
+      },
+      {
+        "name": "BadParameter.format_message",
+        "behavior": "Builds the 'Invalid value for X: msg' text as described for BadParameter.",
+        "edge_cases": [
+          "no hint and no param gives 'Invalid value: msg'"
+        ],
+        "raises": []
+      },
+      {
+        "name": "MissingParameter",
+        "behavior": "Subclass of BadParameter. __init__(message=None, ctx=None, param=None, param_hint=None, param_type=None) passes message or '' to the parent. format_message() returns '{Missing X}{ hint}.{ msg}'. param_type defaults to param.param_type_name. 'argument', 'option' and 'parameter' map to the translated 'Missing argument', 'Missing option' and 'Missing parameter'. Any other value gives 'Missing {param_type}'. If param is set, param.type.get_missing_message(param, ctx) is appended to the message after '. ', or used on its own when the message is empty. __str__ returns the message, or 'Missing parameter: {param.name}' when the message is empty.",
+        "edge_cases": [
+          "empty message is allowed",
+          "param_type=None and param=None gives 'Missing None'",
+          "with no hint there is no hint segment, so the text ends in '.'"
+        ],
+        "raises": []
+      },
+      {
+        "name": "NoSuchOption",
+        "behavior": "Subclass of UsageError. __init__(option_name, message=None, possibilities=None, ctx=None). The default message is \"No such option 'name'.\" The possibilities argument is filtered through difflib.get_close_matches(option_name, possibilities) (default n=3, cutoff 0.6) and stored as a list. It is None if possibilities is empty or None. format_message() appends 'Did you mean X?' for one match, or '(Did you mean one of: ...?)' for several, with names sorted and repr-quoted.",
+        "edge_cases": [
+          "falsy possibilities gives possibilities=None",
+          "no close match gives an empty list, and the suggestion is omitted because the list is falsy"
+        ],
+        "raises": []
+      },
+      {
+        "name": "NoSuchCommand",
+        "behavior": "Same shape as NoSuchOption, with command_name. It is marked versionadded 8.4.0. The default message is \"No such command 'name'.\" Suggestions come from difflib.get_close_matches.",
+        "edge_cases": [
+          "same as NoSuchOption"
+        ],
+        "raises": []
+      },
+      {
+        "name": "BadOptionUsage",
+        "behavior": "Subclass of UsageError. __init__(option_name, message, ctx=None). It stores option_name and does not change the message. Used when an option is supplied but misused, for example with the wrong number of values.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "BadArgumentUsage",
+        "behavior": "Subclass of UsageError with no added behavior. Used for wrong argument usage, such as the wrong number of values.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "NoArgsIsHelpError",
+        "behavior": "Subclass of UsageError. __init__(ctx) uses ctx.get_help() as the message. show() echoes only format_message() with err=True and color=ctx.color. It has no 'Error:' prefix and no usage line. Its show() takes a file argument but passes err=True along with it.",
+        "edge_cases": [
+          "ctx is required"
+        ],
+        "raises": []
+      },
+      {
+        "name": "FileError",
+        "behavior": "Subclass of ClickException. __init__(filename, hint=None). The hint defaults to the translated 'unknown error' and is stored as the message. ui_filename = format_filename(filename) and filename is the raw value. format_message() returns \"Could not open file {ui_filename!r}: {message}\".",
+        "edge_cases": [
+          "a surrogate filename is rendered with the replacement character U+FFFD"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Abort",
+        "behavior": "Subclass of RuntimeError with no extra behavior. It signals an abort and is not a ClickException.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "Exit",
+        "behavior": "Subclass of RuntimeError with __slots__ ('exit_code',). __init__(code=0) sets exit_code and does not call super().__init__. It is not a ClickException and is not exported in __init__.py.",
+        "edge_cases": [
+          "it never calls Exception.__init__, so args is empty"
+        ],
+        "raises": []
+      }
+    ],
+    "error_conventions": "ClickException subclasses are shown as 'Error: <message>'. UsageError and its subclasses have exit_code 2 and print usage plus a help hint first. Plain ClickException and FileError have exit_code 1. BadParameter messages read 'Invalid value for X: ...'. Missing parameters read 'Missing option/argument/parameter X.'. Unknown names read \\\"No such option/command 'x'.\\\" plus an optional 'Did you mean ...?'. All user-facing strings go through gettext (_ and ngettext). Names are shown with repr (!r). Abort and Exit are RuntimeErrors for control flow and are not shown as messages.",
+    "examples": [
+      {
+        "description": "FileError formats a surrogate filename without crashing",
+        "code": "message = click.FileError(filename=\"\\udcff\").format_message()\nassert message == \"Could not open file '\ufffd': unknown error\"",
+        "source_path": "tests/test_exceptions/test_FileError.py",
+        "line_start": 4,
+        "line_end": 6
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_exceptions/test_FileError.py",
+        "how_it_asserts": "A single plain pytest function that constructs click.FileError with a surrogate filename and compares format_message() to the exact string using a bare assert. No other class in this module has a test file in tests/test_exceptions/. I did not search other test files for coverage of these classes."
+      }
+    ],
+    "extension_points": [
+      {
+        "name": "ClickException.format_message",
+        "path": "src/click/exceptions.py",
+        "line": 51,
+        "what_could_attach": "Subclasses override it to customize the message. show() calls it."
+      },
+      {
+        "name": "ClickException.exit_code",
+        "path": "src/click/exceptions.py",
+        "line": 39,
+        "what_could_attach": "A custom subclass sets its own class-level exit code."
+      },
+      {
+        "name": "ClickException.show",
+        "path": "src/click/exceptions.py",
+        "line": 57,
+        "what_could_attach": "Override to change output format or destination, for example JSON errors."
+      },
+      {
+        "name": "UsageError.show",
+        "path": "src/click/exceptions.py",
+        "line": 87,
+        "what_could_attach": "Customize the usage and hint rendering."
+      },
+      {
+        "name": "_format_possibilities",
+        "path": "src/click/exceptions.py",
+        "line": 26,
+        "what_could_attach": "A shared helper for suggestion formatting, used by NoSuchOption and NoSuchCommand."
+      },
+      {
+        "name": "BadParameter.format_message",
+        "path": "src/click/exceptions.py",
+        "line": 146,
+        "what_could_attach": "A custom message template for invalid values."
+      }
+    ],
+    "gaps": [
+      {
+        "description": "Exit and Abort are not ClickExceptions, and Exit is not re-exported publicly.",
+        "why_plausible": "A public Exit export would match Context.exit usage.",
+        "nearest_existing": "Exit"
+      },
+      {
+        "description": "No configurable cutoff or count for difflib suggestions. Both NoSuchOption and NoSuchCommand duplicate the same matching code.",
+        "why_plausible": "A shared helper with n and cutoff arguments is a small refactor.",
+        "nearest_existing": "NoSuchOption.__init__"
+      },
+      {
+        "description": "The FileError hint carries no errno or original OSError. FileError has no cause or structured data.",
+        "why_plausible": "Accepting an OSError would give richer messages.",
+        "nearest_existing": "FileError"
+      },
+      {
+        "description": "No machine-readable (dict or JSON) representation of errors.",
+        "why_plausible": "Programmatic CLIs benefit from structured errors.",
+        "nearest_existing": "ClickException.show"
+      },
+      {
+        "description": "MissingParameter cannot report several missing parameters at once.",
+        "why_plausible": "Users often fix all missing parameters in one pass.",
+        "nearest_existing": "MissingParameter"
+      }
+    ],
+    "limitations": [
+      "Exit.__init__ does not call super().__init__, so args is empty.",
+      "ClickException.show_color is captured at construction time, so later changes to the colour setting are not seen.",
+      "Most classes (UsageError, BadParameter, MissingParameter, NoSuchOption, NoSuchCommand, and the others) have no dedicated test file under tests/test_exceptions/.",
+      "Several attributes are annotated t.Final, which is a typing-only constraint.",
+      "NoArgsIsHelpError.show passes err=True while also accepting a file argument.",
+      "I did not read core.py, the docs, or other test files, so how these classes are raised and caught is not covered here."
+    ]
+  }
+}

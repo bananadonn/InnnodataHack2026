@@ -1,0 +1,369 @@
+{
+  "path": "src/click/types.py",
+  "claim": {
+    "summary": "src/click/types.py defines ParamType (generic ABC: convert/fail/get_metavar/shell_complete/to_info_dict/split_envvar_value) and concrete types: FuncParamType, UNPROCESSED, STRING, Choice, DateTime, INT/IntRange, FLOAT/FloatRange, BOOL, UUID, File, Path, Tuple (composite). convert_type maps Python types/defaults/ParamType instances to ParamType singletons. Singletons are module-level t.Final instances at the end of the file. Failures go through ParamType.fail -> BadParameter.",
+    "interfaces": [
+      {
+        "name": "ParamType",
+        "behavior": "Generic ABC (line 65), class attrs is_composite=False, arity=1, name (must be set by subclass), envvar_list_splitter=None (whitespace). __call__ returns None for None, else self.convert(value,param,ctx). Base convert returns value unchanged. get_metavar and get_missing_message return None by default; shell_complete returns []. split_envvar_value does (rv or '').split(envvar_list_splitter). On Python<3.13 __class_getitem__ fills the 2nd type param with Any.",
+        "edge_cases": [
+          "to_info_dict derives param_type from class name stripped of 'ParamType'/'ParameterType' suffix; falls back to that when subclass has no `name`",
+          "convert must tolerate param=None and ctx=None (prompts)",
+          "split_envvar_value on None-like falsy rv gives [] when splitter is None, [''] otherwise"
+        ],
+        "raises": [
+          "BadParameter (via fail)"
+        ]
+      },
+      {
+        "name": "ParamType.to_info_dict",
+        "behavior": "Returns {'param_type': str, 'name': str}; subclasses extend with **super().to_info_dict().",
+        "edge_cases": [
+          "missing name attr uses derived class name"
+        ],
+        "raises": []
+      },
+      {
+        "name": "ParamType.fail",
+        "behavior": "Raises BadParameter(message, ctx=ctx, param=param); typed NoReturn.",
+        "edge_cases": [
+          "param and ctx optional"
+        ],
+        "raises": [
+          "BadParameter"
+        ]
+      },
+      {
+        "name": "ParamType.convert",
+        "behavior": "Override point; identity by default (line 179).",
+        "edge_cases": [
+          "not called for None"
+        ],
+        "raises": []
+      },
+      {
+        "name": "ParamType.shell_complete",
+        "behavior": "Returns list of CompletionItem; default empty list.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "CompositeParamType",
+        "behavior": "ParamType subclass with is_composite=True and abstract arity property; base for Tuple.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "FuncParamType",
+        "behavior": "Wraps a callable; name=func.__name__. convert calls func(value); on ValueError fails with str(exc), or str(value) if message empty (bytes decoded utf-8 'replace' on UnicodeError). to_info_dict adds 'func'.",
+        "edge_cases": [
+          "only ValueError is caught; other exceptions propagate",
+          "empty ValueError message falls back to the value"
+        ],
+        "raises": [
+          "BadParameter"
+        ]
+      },
+      {
+        "name": "Choice",
+        "behavior": "Choice(choices, case_sensitive=True); choices stored as tuple (iterable consumed once). convert normalizes value via normalize_choice, builds {original: normalized} mapping each call, returns first original whose normalized equals. Enum members normalize to .name, others to str(). normalize_choice applies ctx.token_normalize_func then casefold if not case_sensitive. get_metavar: for options with show_choices False uses upper-cased type names of choices; else 'a|b|c'; wrapped in {} for required argument, [] otherwise. shell_complete prefix matches normalized choices.",
+        "edge_cases": [
+          "value not in choices -> fail with get_invalid_choice_message (ngettext singular 'X is not Y.' when 1 choice)",
+          "non-str values (ints, enums) are compared via normalized str",
+          "duplicate normalized values: first match wins (no check despite docstring)",
+          "ctx may be None"
+        ],
+        "raises": [
+          "BadParameter"
+        ]
+      },
+      {
+        "name": "Choice.normalize_choice",
+        "behavior": "(choice, ctx)->str normalization hook; overridable (versionadded 8.2).",
+        "edge_cases": [
+          "Enum uses .name"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Choice.get_invalid_choice_message",
+        "behavior": "Returns \"'d' is not one of 'a', 'b', 'c'.\" using repr of normalized values; singular form for single choice.",
+        "edge_cases": [
+          "value repr uses raw value"
+        ],
+        "raises": []
+      },
+      {
+        "name": "DateTime",
+        "behavior": "DateTime(formats=None); default formats '%Y-%m-%d','%Y-%m-%dT%H:%M:%S','%Y-%m-%d %H:%M:%S' (used when formats falsy). convert returns datetime instances as-is, else tries strptime for each format in order.",
+        "edge_cases": [
+          "empty formats list falls back to defaults",
+          "non-string non-datetime value: strptime raises TypeError (only ValueError caught)",
+          "metavar '[fmt1|fmt2]'"
+        ],
+        "raises": [
+          "BadParameter"
+        ]
+      },
+      {
+        "name": "IntRange",
+        "behavior": "IntRange(min=None,max=None,min_open=False,max_open=False,clamp=False); converts via int() then range-checks. With clamp, out-of-range returns bound (bound\u00b11 if open).",
+        "edge_cases": [
+          "clamp checks min before max",
+          "failure message '{value} is not in the range {range}.' e.g. '0<=x<=10'",
+          "non-int string -> '... is not a valid integer.'"
+        ],
+        "raises": [
+          "BadParameter"
+        ]
+      },
+      {
+        "name": "FloatRange",
+        "behavior": "Like IntRange over float(); __init__ raises TypeError if clamp with min_open/max_open; _clamp on open bound raises RuntimeError.",
+        "edge_cases": [
+          "clamp with open bounds rejected at construction"
+        ],
+        "raises": [
+          "TypeError",
+          "RuntimeError",
+          "BadParameter"
+        ]
+      },
+      {
+        "name": "BoolParamType",
+        "behavior": "BOOL singleton. convert uses str_to_bool: bools pass through, strings stripped/lowercased and looked up in class dict bool_states (1/0/yes/no/true/false/on/off/t/f/y/n/'' ).",
+        "edge_cases": [
+          "empty string -> False",
+          "non-str non-bool value raises AttributeError on .strip",
+          "unknown -> failure listing sorted recognized states"
+        ],
+        "raises": [
+          "BadParameter"
+        ]
+      },
+      {
+        "name": "BoolParamType.str_to_bool",
+        "behavior": "Static; returns bool or None if unknown.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "StringParamType",
+        "behavior": "STRING; bytes decoded with argv encoding, then filesystem encoding, then utf-8 replace; anything else str(value).",
+        "edge_cases": [
+          "never fails"
+        ],
+        "raises": []
+      },
+      {
+        "name": "UnprocessedParamType",
+        "behavior": "UNPROCESSED; returns value unchanged, name 'text'.",
+        "edge_cases": [],
+        "raises": []
+      },
+      {
+        "name": "UUIDParameterType",
+        "behavior": "UUID singleton; returns uuid.UUID as-is, else strips string and uuid.UUID(value).",
+        "edge_cases": [
+          "only ValueError caught"
+        ],
+        "raises": [
+          "BadParameter"
+        ]
+      },
+      {
+        "name": "File",
+        "behavior": "File(mode='r',encoding=None,errors='strict',lazy=None,atomic=False); name 'filename'; envvar splitter os.path.pathsep. convert returns file-like objects (has read or write) unchanged. resolve_lazy_flag: explicit lazy wins; '-' -> not lazy; 'w' in mode -> lazy; else not lazy. Lazy uses _LazyFile registered with ctx.call_on_close(close_intelligently); otherwise open_stream and ctx.call_on_close closes (or flushes for std streams).",
+        "edge_cases": [
+          "ctx None: caller must close",
+          "OSError -> '<filename>': strerror",
+          "to_info_dict only mode and encoding"
+        ],
+        "raises": [
+          "BadParameter"
+        ]
+      },
+      {
+        "name": "Path",
+        "behavior": "Path(exists=False,file_okay=True,dir_okay=True,writable=False,readable=True,resolve_path=False,allow_dash=False,path_type=None,executable=False). Generic over converted type. name is 'file'/'directory'/'path' by flags. convert: skip checks for allowed dash; realpath if resolve_path; os.stat; missing -> returns value if not exists else fail; then file/dir check, readable, writable, executable checks; result via coerce_path_result.",
+        "edge_cases": [
+          "nonexistent path with exists=False skips all further checks",
+          "executable check uses original value not resolved rv",
+          "bytes dash handled",
+          "path_type str/bytes use fsdecode/fsencode, else path_type(value)",
+          "to_info_dict omits executable, resolve_path"
+        ],
+        "raises": [
+          "BadParameter"
+        ]
+      },
+      {
+        "name": "Path.coerce_path_result",
+        "behavior": "Converts to self.type if not already instance.",
+        "edge_cases": [
+          "None keeps value"
+        ],
+        "raises": []
+      },
+      {
+        "name": "Tuple",
+        "behavior": "Tuple(types) composite; each element passed through convert_type; name '<int text>'; arity=len(types). convert checks len(value) equals arity then converts each element.",
+        "edge_cases": [
+          "length mismatch fail with ngettext message",
+          "len(value) on non-sized raises TypeError"
+        ],
+        "raises": [
+          "BadParameter"
+        ]
+      },
+      {
+        "name": "convert_type",
+        "behavior": "convert_type(ty=None, default=None): _guess_type first (default type / first item of list/tuple default; nested sequences become tuple of types), then tuple->Tuple, ParamType instance as is, str/None->STRING, int->INT, float->FLOAT, bool->BOOL; guessed-but-unknown types -> STRING; otherwise FuncParamType(ty).",
+        "edge_cases": [
+          "ParamType subclass (uninstantiated) raises AssertionError under __debug__",
+          "empty list default -> STRING",
+          "explicit non-recognized class e.g. pathlib.Path becomes FuncParamType"
+        ],
+        "raises": [
+          "AssertionError"
+        ]
+      }
+    ],
+    "error_conventions": "Validation failures call ParamType.fail which raises click.exceptions.BadParameter(message, ctx, param). Messages are gettext-wrapped (_ / ngettext), use {value!r} reprs, end with a period (e.g. \"'d' is not one of 'a', 'b'.\"; \"{value!r} is not a valid integer.\"; \"{name} {filename!r} does not exist.\"). Programmer errors use TypeError (FloatRange open+clamp), RuntimeError (open float clamp), AssertionError (uninstantiated ParamType class in convert_type). Non-ValueError exceptions from conversion propagate.",
+    "examples": [
+      {
+        "description": "Choice invalid message",
+        "code": "choice = click.Choice([\"a\", \"b\", \"c\"])\nmessage = choice.get_invalid_choice_message(\"d\", ctx=None)\nassert message == \"'d' is not one of 'a', 'b', 'c'.\"",
+        "source_path": "tests/test_types/test_Choice.py",
+        "line_start": 5,
+        "line_end": 7
+      },
+      {
+        "description": "Path with path_type in a command",
+        "code": "cli = click.Command(\n    \"cli\",\n    params=[click.Argument([\"p\"], type=click.Path(path_type=cls))],\n    callback=lambda p: p,\n)\nresult = runner.invoke(cli, [\"a/b/c.txt\"], standalone_mode=False)",
+        "source_path": "tests/test_types/test_Path.py",
+        "line_start": 179,
+        "line_end": 184
+      },
+      {
+        "description": "info dict for DateTime",
+        "code": "click.DateTime([\"%Y-%m-%d\"]),\n{\"param_type\": \"DateTime\", \"name\": \"datetime\", \"formats\": [\"%Y-%m-%d\"]},",
+        "source_path": "tests/test_info_dict.py",
+        "line_start": 120,
+        "line_end": 121
+      },
+      {
+        "description": "Path error message includes escaped newline",
+        "code": "with pytest.raises(click.BadParameter) as exc_info:\n    click.Path(dir_okay=False).convert(tempdir, None, None)\nassert \"my\\\\ndir\" in exc_info.value.message",
+        "source_path": "tests/test_types/test_Path.py",
+        "line_start": 162,
+        "line_end": 166
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_info_dict.py",
+        "how_it_asserts": "Parametrized with pytest.param(..., id=...) comparing to_info_dict() output dicts of each type (Choice, DateTime, IntRange, Path, Tuple, etc.) to expected dicts."
+      },
+      {
+        "path": "tests/test_types/test_Choice.py",
+        "how_it_asserts": "Single plain test calling get_invalid_choice_message directly with ctx=None and asserting the exact string."
+      },
+      {
+        "path": "tests/test_types/test_Path.py",
+        "how_it_asserts": "Plain functions using pytest.raises(click.BadParameter), tmp_path/monkeypatch, runner.invoke on a Command with standalone_mode=False and checking result.return_value, parametrized path_type; also t.get_args(click.Path[pathlib.Path])."
+      }
+    ],
+    "extension_points": [
+      {
+        "name": "ParamType subclassing (convert/get_metavar/shell_complete/to_info_dict)",
+        "path": "src/click/types.py",
+        "line": 65,
+        "what_could_attach": "Custom types subclass ParamType, set name, override convert and call self.fail."
+      },
+      {
+        "name": "Choice.normalize_choice",
+        "path": "src/click/types.py",
+        "line": 406,
+        "what_could_attach": "Override for custom normalization (aliases, prefix matching)."
+      },
+      {
+        "name": "Choice.get_invalid_choice_message",
+        "path": "src/click/types.py",
+        "line": 478,
+        "what_could_attach": "Override for custom error text, e.g. did-you-mean suggestions."
+      },
+      {
+        "name": "BoolParamType.bool_states",
+        "path": "src/click/types.py",
+        "line": 822,
+        "what_could_attach": "Class-level dict mapping that could be extended or made configurable."
+      },
+      {
+        "name": "_NumberRangeBase._clamp",
+        "path": "src/click/types.py",
+        "line": 700,
+        "what_could_attach": "Abstract hook for new numeric range types."
+      },
+      {
+        "name": "convert_type",
+        "path": "src/click/types.py",
+        "line": 1356,
+        "what_could_attach": "Dispatch chain on Python type; a place to register new type mappings (e.g. UUID, datetime, enum, Path)."
+      },
+      {
+        "name": "Path.coerce_path_result",
+        "path": "src/click/types.py",
+        "line": 1147,
+        "what_could_attach": "Override for custom result coercion."
+      },
+      {
+        "name": "File.resolve_lazy_flag",
+        "path": "src/click/types.py",
+        "line": 975,
+        "what_could_attach": "Override lazy-open policy."
+      }
+    ],
+    "gaps": [
+      {
+        "description": "No Enum-based type; Choice accepts enums but the dispatch in convert_type doesn't map enum classes to Choice",
+        "why_plausible": "Choice already supports enum members via normalize_choice using .name",
+        "nearest_existing": "convert_type"
+      },
+      {
+        "description": "BOOL true/false strings are not user-configurable",
+        "why_plausible": "The docstring on bool_states explicitly mentions future work for configurability",
+        "nearest_existing": "BoolParamType.bool_states"
+      },
+      {
+        "description": "DateTime has no timezone-aware default formats or fromisoformat support",
+        "why_plausible": "Docstring says defaults are non-timezone-aware; formats list is the only knob",
+        "nearest_existing": "DateTime"
+      },
+      {
+        "description": "Path lacks a check for file extension / suffix or max size",
+        "why_plausible": "Path validations are a flat list of checks in convert; one more fits the pattern",
+        "nearest_existing": "Path.convert"
+      },
+      {
+        "description": "Path.to_info_dict omits executable, resolve_path and path_type",
+        "why_plausible": "Info dict is meant for documentation tools and other flags are included",
+        "nearest_existing": "Path.to_info_dict"
+      },
+      {
+        "description": "Open float ranges cannot be clamped (RuntimeError); math.nextafter could implement it",
+        "why_plausible": "Source comment mentions nextafter as an option",
+        "nearest_existing": "FloatRange._clamp"
+      }
+    ],
+    "limitations": [
+      "Choice rebuilds its normalized mapping on every convert and does not validate uniqueness of normalized values.",
+      "FuncParamType, UUID and DateTime catch only ValueError; other exceptions propagate (e.g. DateTime TypeError on non-str).",
+      "BoolParamType.convert raises AttributeError for non-str, non-bool input.",
+      "Tuple.convert relies on len(value); no nargs validation here.",
+      "Path executable check uses the unresolved value while other checks use the resolved path.",
+      "File's to_info_dict does not include lazy/atomic/errors.",
+      "Tests directly covering this module are sparse for Choice (one test); other types are covered in sibling test files in tests/test_types/."
+    ]
+  }
+}

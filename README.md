@@ -15,7 +15,8 @@ The organizer brief, rubric and submission rules are in [`kit/`](kit/README.md).
 | Repo scaffold, kit restored | done |
 | click base template (`templates/click_base/`) | Dockerfile written, **not yet built or tested**; grading files are TODO placeholders |
 | Kit grading files (`grade.py`, `test.sh`, ...) | **missing**, see [`kit/MISSING.md`](kit/MISSING.md) |
-| Pipeline (`pipeline/`) | stubs only |
+| Repo exploration (`pipeline/explore.py`) | implemented (Claude Agent SDK) |
+| Rest of the pipeline (`pipeline/`) | stubs only |
 | Generated tasks, selfcheck, benchmark | none yet |
 
 Plan and ownership: [`docs/PLAN.md`](docs/PLAN.md).
@@ -49,6 +50,10 @@ inside the WSL filesystem, not under `/mnt/c`.
 ## How to run
 
 ```bash
+# 0. Explore the input repo: clone, read, research, write a report to runs/<run_id>/
+uv run python -m pipeline.cli explore https://github.com/pallets/click --ref 8.5.1
+uv run python -m pipeline.cli ask <run_id> "Where are option defaults resolved?"
+
 # 1. Generate packages into generated_tasks/   (stub for now)
 uv run python -m pipeline.cli generate --n 5
 
@@ -69,7 +74,8 @@ Both scripts accept specific package paths as arguments to run a subset.
 ```
 kit/               organizer kit, restored. Read-only reference, do not edit.
 templates/click_base/   base package every generated task starts from
-pipeline/          the task factory (propose → generate → select_p2p → validate, + telemetry)
+pipeline/          the task factory (explore → propose → generate → select_p2p → validate, + telemetry)
+runs/<run_id>/     one exploration run: report.json, report.md, run.json, events.jsonl (clone is gitignored)
 generated_tasks/   pipeline output (Harbor packages). Committed. Never hand-edited.
 results/selfcheck/ oracle/nop evidence        results/bench/  haiku resolve@3 logs
 results/pipeline_run.json   per-task telemetry (schema: kit/SUBMISSION.md §3b)
@@ -85,9 +91,14 @@ Raw harbor run directories land in `./sc` and `./bench` at the repo root and are
   All constants live in `pipeline/config.py`.
 - **Task IDs:** `pallets__click-0001-<kebab-slug>`. The folder name, `name` and `instance_id`
   in `task.toml` must all be identical.
-- **Models:** generation goes through OpenRouter with a cheap model (set `GENERATION_MODEL` in
-  `pipeline/config.py`). Benchmark **only** with `anthropic/claude-haiku-5-5` via `terminus-2`,
-  k=3. The Anthropic key is reserved for benchmarking.
+- **Models:** exploration and generation run on Claude Haiku through the Claude Agent SDK
+  (`GENERATION_MODEL` in `pipeline/config.py`), billed to the Anthropic key. Every agent run has
+  a turn, cost and wall-clock cap. Benchmark **only** with `anthropic/claude-haiku-5-5` via
+  `terminus-2`. The benchmark shares the same $100 Anthropic allocation, so watch the spend.
+- **Benchmark k:** the Markdown guide says k=3, part of the Word guide says k=5. Unresolved;
+  ask the organizers. Scripts use k=3 for now.
+- **The exploration agent is read-only** and confined to its run workspace. Repo and web
+  content are untrusted input.
 - **Gold patch and test patch must touch disjoint files.** The grader resets test-patch paths
   before applying the test patch, so any overlap reverts part of the gold.
 - **Feature tests assert concrete values. Specs must state everything the tests check.**
@@ -110,4 +121,3 @@ Raw harbor run directories land in `./sc` and `./bench` at the repo root and are
 - **`validate_submission.py` on the repo root** counts every folder with a `task.toml` as a
   package, including `templates/click_base/` and the incomplete toy example in `kit/`, and will
   report errors for them. Run it on a staged submission folder instead.
-- **Generation model** is not chosen yet (`GENERATION_MODEL` in `pipeline/config.py`).

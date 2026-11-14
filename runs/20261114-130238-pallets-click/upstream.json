@@ -1,0 +1,108 @@
+{
+  "pinned_version": "8.5.1 (CHANGES.md says released 2026-11-09; GitHub releases page shows 06 Nov)",
+  "latest_version": "8.5.1 released; 8.6.0 unreleased on main",
+  "changes_after_pin": [
+    {
+      "title": "Drop Python 3.10 support (#3920)",
+      "url": "https://github.com/pallets/click/pulls?q=is%3Apr+is%3Amerged",
+      "summary": "8.6.0 (unreleased) drops Python 3.10."
+    },
+    {
+      "title": "Deprecate bad parameter names (#3866)",
+      "url": "https://github.com/pallets/click/pulls?q=is%3Apr+is%3Amerged",
+      "summary": "Names that aren't valid identifiers or are keywords are deprecated (TypeError in 9.0). Non-lowercase identifier-style option names are also deprecated."
+    },
+    {
+      "title": "Add Parameter.spec, deprecate human_readable_name (#3877)",
+      "url": "https://github.com/pallets/click/pulls?q=is%3Apr+is%3Amerged",
+      "summary": "New Parameter.spec property shows how users type the parameter. get_help_spec moves from Option to Parameter, and Argument overrides it to return its metavar. Errors and warnings show the spec. human_readable_name is deprecated and its return value changes."
+    },
+    {
+      "title": "CliRunner echoes ^D and ^Z (#3878)",
+      "url": "https://github.com/pallets/click/pulls?q=is%3Apr+is%3Amerged",
+      "summary": "With echo_stdin=True, CliRunner echoes \\x04 and \\x1a as ^D and ^Z and no longer passes them to the command."
+    },
+    {
+      "title": "CliRunner.invoke accepts context_settings (#3896)",
+      "url": "https://github.com/pallets/click/pulls?q=is%3Apr+is%3Amerged",
+      "summary": "New context_settings argument on CliRunner.invoke."
+    },
+    {
+      "title": "Help pages no longer break within hyphenated or long words (#3902)",
+      "url": "https://github.com/pallets/click/pulls?q=is%3Apr+is%3Amerged",
+      "summary": "Help text wrapping change."
+    },
+    {
+      "title": "Docs and CI changes (#3917, #3918, #3897, #3898, #3909)",
+      "url": "https://github.com/pallets/click/pulls?q=is%3Apr+is%3Amerged",
+      "summary": "catch_exceptions testing docs, file-object parameter docs, Nuitka standalone guide, Click UI scope/direction doc, and Python 3.15 added to the test matrix."
+    }
+  ],
+  "open_or_planned": [
+    {
+      "title": "#2784 Allow adding dynamic parameters to every Context",
+      "url": "https://github.com/pallets/click/pull/2784",
+      "summary": "Open PR."
+    },
+    {
+      "title": "#2880 PromptBuilder for click.prompt/confirm format customization",
+      "url": "https://github.com/pallets/click/pull/2880",
+      "summary": "Open PR."
+    },
+    {
+      "title": "#2864 Improve internationalization",
+      "url": "https://github.com/pallets/click/pull/2864",
+      "summary": "Open PR."
+    },
+    {
+      "title": "#3880 Split PAGER and EDITOR with a Windows-specific shlex equivalent",
+      "url": "https://github.com/pallets/click/pull/3880",
+      "summary": "Open PR."
+    },
+    {
+      "title": "#3827 Require parameter name to be a non-keyword identifier",
+      "url": "https://github.com/pallets/click/pull/3827",
+      "summary": "Open PR. Overlaps with the merged deprecation in #3866."
+    },
+    {
+      "title": "#3859 and #3412 Add pyrefly type checking",
+      "url": "https://github.com/pallets/click/pull/3859",
+      "summary": "Two overlapping open PRs. Tooling only."
+    },
+    {
+      "title": "#3051 Reference tables for kwargs (WIP)",
+      "url": "https://github.com/pallets/click/pull/3051",
+      "summary": "Open docs PR."
+    },
+    {
+      "title": "#3921 Python 3.11 cleanups",
+      "url": "https://github.com/pallets/click/pull/3921",
+      "summary": "Open PR. Cleanup only."
+    }
+  ],
+  "do_not_propose": [
+    "PowerShell shell completion (8.5.0)",
+    "Argument help parameter and Positional arguments help section (8.5.0, 8.5.1)",
+    "Parameter-level help argument (8.5.1)",
+    "custom_version_option (8.5.0); version_option feature set is frozen",
+    "Option.get_help_spec / Parameter.spec / get_help_spec on Parameter (8.5.1, 8.6.0)",
+    "CliRunner context_settings, CliRunner capture='fd', and ^D/^Z echo (8.4.0, 8.6.0)",
+    "get_pager_file, streaming echo_via_pager, PAGER params forwarding",
+    "NoSuchCommand suggestions (8.4.0)",
+    "Deprecation of invalid, keyword or non-lowercase parameter names",
+    "Reserved _click_default_help name and parameter name collision warnings",
+    "Dynamic parameters on every Context (PR #2784)",
+    "PromptBuilder prompt/confirm formatting customization (PR #2880)",
+    "Windows-aware PAGER/EDITOR splitting (PR #3880)",
+    "Colorama removal and default Windows ANSI",
+    "Hyphen-safe help wrapping and abbreviation-aware short help",
+    "Python 3.10 drop and Python 3.15 test matrix"
+  ],
+  "limitations": [
+    "Merged-PR and open-PR lists came from summarized GitHub list pages, so they may be incomplete. Item URLs for merged PRs point to the list page, not individual PRs.",
+    "Open issues were not enumerated: the label-filtered query returned 0 results. The unfiltered issue list was not read.",
+    "The raw CHANGES.rst URL returned 404; CHANGES.md was used instead. The summarized main-branch changelog may be paraphrased.",
+    "The release date differs between the repo CHANGES.md (2026-11-09) and the releases page (06 Nov). The releases page's 06 Nov matches the 'Release 8.5.1' PR merge date.",
+    "Only the 8.5.1 section and the first 80 lines of the local changelog were read."
+  ]
+}

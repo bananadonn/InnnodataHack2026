@@ -8,7 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from pipeline.propose import FeatureIdea
+from pipeline.propose import Feature
 from pipeline.telemetry import TaskTelemetry
 
 
@@ -22,7 +22,7 @@ class TaskDraft(BaseModel):
     fail_to_pass: list[str]  # pytest IDs of the new feature tests
 
 
-def generate_draft(idea: FeatureIdea, index: int, telemetry: TaskTelemetry | None = None) -> TaskDraft:
+def generate_draft(idea: Feature, index: int, telemetry: TaskTelemetry | None = None) -> TaskDraft:
     """Generate spec + gold patch + feature tests for `idea`.
 
     Rules the output must satisfy:
